@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+declare -A puzzle
+length=0
+height=0
+
+numfound=0
+
+check-for-match() {
+	local i=$i
+	local j=$j
+	local key
+
+	echo "checking for match at $i,$j"
+
+	# check \ direction
+	key="$((i-1)),$((j-1))"
+	local c1=${puzzle[$key]}
+	key="$((i+1)),$((j+1))"
+	local c2=${puzzle[$key]}
+
+	if [[ $c1 == 'M' && $c2 == 'S' ]] || [[ $c1 == 'S' && $c2 == 'M' ]]; then
+		# half way there
+		true
+	else
+		return
+	fi
+
+	# check / direction
+	key="$((i-1)),$((j+1))"
+	local c1=${puzzle[$key]}
+	key="$((i+1)),$((j-1))"
+	local c2=${puzzle[$key]}
+
+	if [[ $c1 == 'M' && $c2 == 'S' ]] || [[ $c1 == 'S' && $c2 == 'M' ]]; then
+		((numfound++))
+	fi
+}
+
+while read -r line; do
+	length=${#line}
+
+	for ((i = 0; i < length; i++)); do
+		char=${line:i:1}
+		key="$height,$i"
+		echo "setting '$key' = '$char'"
+		puzzle[$key]=$char
+	done
+
+	((height++))
+done
+
+echo "puzzle length: $length"
+echo "puzzle height: $height"
+echo
+
+for ((i = 0; i < length; i++)); do
+	for ((j = 0; j < height; j++)); do
+		key=$i,$j
+		char=${puzzle[$key]}
+
+		if [[ $char == 'A' ]]; then
+			check-for-match "$i" "$j"
+		fi
+	done
+done
+
+echo "found $numfound matches"

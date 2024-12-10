@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+lhs=()
+rhs=()
+while read -r num1 num2; do
+	lhs+=("$num1")
+	rhs+=("$num2")
+done
+
+mapfile -t leftsorted < <(printf '%d\n' "${lhs[@]}" | sort -n)
+mapfile -t rightsorted < <(printf '%d\n' "${rhs[@]}" | sort -n)
+
+len=${#lhs[@]}
+
+accum=0
+for ((i = 0; i < len; i++)); do
+	left=${leftsorted[$i]}
+	right=${rightsorted[$i]}
+
+	diff=$((left - right))
+
+	# abs value
+	dist=${diff#-}
+
+	((accum += dist))
+done
+
+echo "final total = $accum"

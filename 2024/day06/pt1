@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+
+declare -A grid
+
+fatal() {
+	echo "$@" >&2
+	exit 1
+}
+
+print-grid() {
+	local y x
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local key="$x,$y"
+			local c=${grid[$key]}
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+# read in the data and save it into the grid
+# also find out where the guard is
+y=0
+x=0
+guard_x=-1
+guard_y=-1
+while read -r row; do
+	width=${#row}
+	for ((x = 0; x < width; x++)); do
+		c=${row:x:1}
+
+		# check if we have found the guard
+		if [[ $c == '^' ]]; then
+			guard_x=$x
+			guard_y=$y
+		fi
+
+		key=$x,$y
+		grid[$key]=$c
+	done
+
+	((y++))
+done
+height=$y
+
+# make sure we found the guard
+if ((guard_x == -1 || guard_y == -1)); then
+	fatal 'uh oh could not find guard in input'
+fi
+
+# print what we have so far
+echo "width = $width"
+echo "height = $height"
+echo "guard location = $guard_x,$guard_y"
+
+# guard always starts by moving up first
+direction='up'
+
+print-grid
+
+declare -A seen
+seen["$guard_x,$guard_y"]=true
+
+# not needed for the puzzle, just fun
+counter=0
+while true; do
+	# try to move the guard and see what happens
+
+	# image what it would look like if we move her
+	new_x=$guard_x
+	new_y=$guard_y
+
+	# figure out how to move her based on her direction
+	case "$direction" in
+		up) ((new_y--));;
+		down) ((new_y++));;
+		left) ((new_x--));;
+		right) ((new_x++));;
+		*) fatal "bad direction: $direction";;
+	esac
+
+	# check her bounds
+	if ((new_x < 0 || new_x >= width || new_y < 0 || new_y >= height)); then
+		echo she left lol
+		break
+	fi
+
+	# check for collision
+	key=$new_x,$new_y
+	new_c=${grid[$key]}
+
+	case "$new_c" in
+		.) # we are free to move here
+			case "$direction" in
+				up) guard_char='^';;
+				down) guard_char='v';;
+				left) guard_char='<';;
+				right) guard_char='>';;
+			esac
+			grid["$new_x,$new_y"]=$guard_char
+			grid["$guard_x,$guard_y"]='.'
+			guard_x=$new_x
+			guard_y=$new_y
+			seen["$guard_x,$guard_y"]=true
+			;;
+		'#') # we have a collision
+			# turn her
+			case "$direction" in
+				up) direction=right;;
+				down) direction=left;;
+				left) direction=up;;
+				right) direction=down;;
+				*) fatal "bad direction: $direction";;
+			esac
+			case "$direction" in
+				up) guard_char='^';;
+				down) guard_char='v';;
+				left) guard_char='<';;
+				right) guard_char='>';;
+			esac
+			grid["$guard_x,$guard_y"]=$guard_char
+			;;
+		*)
+			fatal "unknown grid char: $new_c"
+			;;
+	esac
+
+
+	# visualizer
+	sleep .01
+	display=$(print-grid)
+	clear
+	echo "$display"
+done
+echo
+
+# if we are here she has walked out of bounds
+distinct=${#seen[@]}
+echo "visited $distinct distinct positions"

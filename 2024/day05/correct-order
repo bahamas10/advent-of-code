@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+# read the rules (first half of the file)
+declare -A rules
+while IFS='|' read -r lhs rhs; do
+	[[ -n $lhs ]] || break
+	rules[$rhs]+="$lhs "
+done
+
+# loop over rules and print them (debugging purposes)
+for key in "${!rules[@]}"; do
+	value=${rules[$key]}
+	read -ra numbers <<< "$value"
+
+	echo "$key = ${numbers[@]}"
+done
+
+# check if an array contains a needl
+# ex: contains foo "${array[@]}"
+contains() {
+	local needle=$1
+	local hay
+	shift
+	for hay in "$@"; do
+		[[ $needle == "$hay" ]] && return 0
+	done
+	return 1
+}
+
+check-safety() {
+	local update=("$@")
+
+	# loop each number in the update and check it
+	local i
+	for ((i = 0; i < ${#update[@]}; i++)); do
+		local num=${update[i]}
+
+		# extract rules for this number (array might be empty)
+		local rulesfornum
+		read -ra rulesfornum <<< "${rules[$num]}"
+
+		local rule
+		# loop rules and ensure they don't show up later in the update
+		for rule in "${rulesfornum[@]}"; do
+			if contains "$rule" "${update[@]:i+1}"; then
+				return 1
+			fi
+		done
+	done
+	return 0
+}
+
+# read the updates and test them
+accum=0
+while IFS=, read -ra update; do
+	echo -n "checking update: ${update[*]} :: "
+
+	if check-safety "${update[@]}"; then
+		echo safe
+
+		# find the middle number and add it to the total
+		len=${#update[@]}
+		idx=$((len / 2))
+		middle=${update[idx]}
+		((accum += middle))
+	else
+		echo unsafe
+	fi
+done
+
+echo "total is $accum"

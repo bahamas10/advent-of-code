@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+# read the data into 2 arrays
+lhs=()
+rhs=()
+while read -r num1 num2; do
+	lhs+=("$num1")
+	rhs+=("$num2")
+done
+
+# get frequency count for RHS values
+declare -A rhscount
+for value in "${rhs[@]}"; do
+	((rhscount[$value]++))
+done
+
+# loop LHS values and calculate totals
+accum=0
+for value in "${lhs[@]}"; do
+	frequency=${rhscount[$value]}
+	result=$((value * frequency))
+
+#	echo "value = $value, frequency = $frequency, result = $result"
+
+	((accum += result))
+done
+
+echo "final score = $accum"

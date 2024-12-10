@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+
+declare -A puzzle
+length=0
+height=0
+
+numfound=0
+
+check-for-match() {
+	local i=$i
+	local j=$j
+	local key="$i,$j"
+
+	echo "checking for match at $i,$j"
+
+	# check down
+	s=''
+	for ((n=0, a=i, b=j; n < 4; a++, n++)); do
+		key="$a,$b"
+		char=${puzzle[$key]}
+		s+="$char"
+	done
+	if [[ $s == 'XMAS' ]]; then
+		((numfound++))
+	fi
+	# check up
+	s=''
+	for ((n=0, a=i, b=j; n < 4; a--, n++)); do
+		key="$a,$b"
+		char=${puzzle[$key]}
+		s+="$char"
+	done
+	if [[ $s == 'XMAS' ]]; then
+		((numfound++))
+	fi
+	# check right
+	s=''
+	for ((n=0, a=i, b=j; n < 4; b++, n++)); do
+		key="$a,$b"
+		char=${puzzle[$key]}
+		s+="$char"
+	done
+	if [[ $s == 'XMAS' ]]; then
+		((numfound++))
+	fi
+	# check left
+	s=''
+	for ((n=0, a=i, b=j; n < 4; b--, n++)); do
+		key="$a,$b"
+		char=${puzzle[$key]}
+		s+="$char"
+	done
+	if [[ $s == 'XMAS' ]]; then
+		((numfound++))
+	fi
+	# check up-right
+	s=''
+	for ((n=0, a=i, b=j; n < 4; a--, b++, n++)); do
+		key="$a,$b"
+		char=${puzzle[$key]}
+		s+="$char"
+	done
+	if [[ $s == 'XMAS' ]]; then
+		((numfound++))
+	fi
+	# check down-right
+	s=''
+	for ((n=0, a=i, b=j; n < 4; a++, b++, n++)); do
+		key="$a,$b"
+		char=${puzzle[$key]}
+		s+="$char"
+	done
+	if [[ $s == 'XMAS' ]]; then
+		((numfound++))
+	fi
+	# check up-left
+	s=''
+	for ((n=0, a=i, b=j; n < 4; a--, b--, n++)); do
+		key="$a,$b"
+		char=${puzzle[$key]}
+		s+="$char"
+	done
+	if [[ $s == 'XMAS' ]]; then
+		((numfound++))
+	fi
+	# check up-right
+	s=''
+	for ((n=0, a=i, b=j; n < 4; a++, b--, n++)); do
+		key="$a,$b"
+		char=${puzzle[$key]}
+		s+="$char"
+	done
+	if [[ $s == 'XMAS' ]]; then
+		((numfound++))
+	fi
+}
+
+while read -r line; do
+	length=${#line}
+
+	for ((i = 0; i < length; i++)); do
+		char=${line:i:1}
+		key="$height,$i"
+		echo "setting '$key' = '$char'"
+		puzzle[$key]=$char
+	done
+
+	((height++))
+done
+
+echo "puzzle length: $length"
+echo "puzzle height: $height"
+echo
+
+for ((i = 0; i < length; i++)); do
+	for ((j = 0; j < height; j++)); do
+		key=$i,$j
+		char=${puzzle[$key]}
+
+		if [[ $char == 'X' ]]; then
+			check-for-match "$i" "$j"
+		fi
+	done
+done
+
+echo "found $numfound matches"
