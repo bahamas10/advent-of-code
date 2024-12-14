@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+
+antenna_re='^[0-9a-zA-Z]$'
+
+. ./parr || exit 1
+
+# read in the input and find all of the antenna locations and their names
+declare -A all_locations
+declare -A antenna_locations
+declare -A antenna_counts
+width=0
+height=0
+while read -r line; do
+	width=${#line}
+
+	# loop each character
+	for ((x = 0; x < width; x++)); do
+		c=${line:x:1}
+		key=$x,$height
+		all_locations[$key]=$c
+
+		# check if we have an antenna
+		if [[ $c =~ $antenna_re ]]; then
+			# we found an antenna!
+			antenna_locations[$key]=$c
+			((antenna_counts[$c]++))
+		fi
+	done
+
+	((height++))
+done
+
+parr all_locations
+
+print-grid() {
+	local x y
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local key=$x,$y
+			local c
+			if [[ -n ${antinodes[$key]} ]]; then
+				c='#'
+			else
+				c=${all_locations[$key]}
+			fi
+			#c=${all_locations[$key]}
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+# find antinodes given a A and B location pair
+find-antinodes() {
+	local a_location=$1
+	local b_location=$2
+
+	echo "finding antinodes for $a_location and $b_location"
+
+	# turn location string like "5,6" into "5" and "6" for both locations
+	local a_x b_x a_y b_y
+	IFS=, read -r a_x a_y <<< "$a_location"
+	IFS=, read -r b_x b_y <<< "$b_location"
+
+	# calculate the *distance* between both X and both Y locations
+	local d_x d_y
+	d_x=$((a_x - b_x))
+#	d_x=${d_x#-}
+	d_y=$((a_y - b_y))
+#	d_y=${d_y#-}
+
+	# try all possible antinodes
+	# XXX can antinodes created by freqency A overlap with antennas of the same
+	# frequency??
+	local all_possible_antinodes=(
+		"$((a_x - d_x)),$((a_y - d_y))"
+		"$((a_x + d_x)),$((a_y + d_y))"
+		"$((b_x - d_x)),$((b_y - d_y))"
+		"$((b_x + d_x)),$((b_y + d_y))"
+	)
+	for test_location in "${all_possible_antinodes[@]}"; do
+		# ignore our own locations
+		if [[ $test_location == $b_location || $test_location == $a_location ]]; then
+			continue
+		fi
+		echo testing $test_location
+
+		# check if we are in bounds
+		if [[ -n ${all_locations[$test_location]} ]]; then
+			# location is valid for an antinode! record it
+			antinodes[$test_location]=1
+		else
+			# uh oh, this location is out of bounds
+			true
+		fi
+	done
+}
+
+# loop over each antenna name found and calculate their antinodes
+declare -A antinodes
+for antenna in "${!antenna_counts[@]}"; do
+	count=${antenna_counts[$antenna]}
+	echo "calculating antinodes for antenna: $antenna ($count antennas found)"
+
+	# loop *all* locations found and filter only for the antenna we care
+	# about
+	locations=()
+	for location in "${!antenna_locations[@]}"; do
+		name=${antenna_locations[$location]}
+		[[ $name == $antenna ]] || continue
+
+		# if we are here we are processing an antenna we care about
+		locations+=("$location")
+	done
+
+	# this should be the case
+	((count == ${#locations[@]})) || exit 2
+
+	for ((a = 0; a < count; a++)); do
+		for ((b = a + 1; b < count; b++)); do
+			a_location=${locations[a]}
+			b_location=${locations[b]}
+
+			find-antinodes "$a_location" "$b_location"
+		done
+	done
+done
+
+total=${#antinodes[@]}
+
+print-grid
+
+echo "created $total antinodes"
