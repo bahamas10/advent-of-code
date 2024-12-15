@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+
+# read the data (it's just one line luckily)
+echo reading data
+read -r compressed
+
+. parr
+
+print-file() {
+	local idx=$1
+
+	local next=${nextfile[idx]}
+	local size=${filesize[idx]}
+	local free=${freeblocks[idx]}
+
+	echo "file (idx $idx) next=$next, size=$size, free after=$free"
+}
+
+print-all() {
+	local i j
+	local len=${#filenames[@]}
+	for ((i = 0; i < len; i++)); do
+		local name=${filenames[i]}
+		local size=${filesize[i]}
+		local free=${freeblocks[i]}
+
+		for ((j = 0; j < size; j++)); do
+			echo -n "$name"
+		done
+		for ((j = 0; j < free; j++)); do
+			echo -n .
+		done
+	done
+	echo
+}
+calculate-checksum() {
+	local i j
+	local accum=0
+	local len=${#filenames[@]}
+	j=0
+	total=0
+	for ((i = 0; i < len; i++)); do
+		local name=${filenames[i]}
+		local size=${filesize[i]}
+		local free=${freeblocks[i]}
+
+		for ((j = 0; j < size; j++)); do
+			((accum += name * total))
+			((total++))
+		done
+		for ((j = 0; j < free; j++)); do
+			((total++))
+		done
+	done
+	echo "$accum"
+}
+
+recreate-all-arrays() {
+	local nf=0
+	local new_freeblocks=()
+	local new_filesize=()
+	local new_filenames=()
+
+	local len=${#nextfile[@]}
+	local i
+	for ((i = 0; i < len; i++)); do
+		[[ $nf == 'null' ]] && break
+		local name=${filenames[nf]}
+		local size=${filesize[nf]}
+		local free=${freeblocks[nf]}
+
+#		echo ">>>$name<<<"
+
+		new_filenames+=("$name")
+		new_filesize+=("$size")
+		new_freeblocks+=("$free")
+
+#		echo "$nf -> ${nextfile[nf]}"
+		nf=${nextfile[nf]}
+	done
+
+#	echo before
+#	printf "<%s>\n" "${filenames[@]}"
+	freeblocks=("${new_freeblocks[@]}")
+	filenames=("${new_filenames[@]}")
+	filesize=("${new_filesize[@]}")
+	nextfile=()
+#	echo after
+#	printf "<%s>\n" "${filenames[@]}"
+#	echo done
+
+	local len=${#filenames[@]}
+	for ((i = 0; i < len; i++)); do
+		nextfile+=("$((i + 1))")
+	done
+
+}
+
+nextfile=()
+freeblocks=()
+filesize=()
+filenames=()
+
+len=${#compressed}
+LENGTH=0
+for ((i = 0; i < len; i++)); do
+	num=${compressed:i:1}
+	idx=$((i / 2))
+
+	if ((i % 2 == 0)); then
+		# blocks
+		filenames[idx]=$idx
+		nextfile[idx]=$((idx+1))
+		filesize[idx]="$num"
+	else
+		# free space
+		freeblocks[idx]="$num"
+	fi
+done
+nextfile[idx]='null'
+freeblocks[idx]=0
+
+#print-all
+
+len=${#nextfile[@]}
+for ((i = len - 1; i >= 0; i--)); do
+	# try to move this block as far left as possible
+	cur_size=${filesize[i]}
+	i_free_space=${freeblocks[i]}
+	echo "trying to move ${filenames[i]}"
+	for ((j = 0; j < i; j++)); do
+		free_space=${freeblocks[j]}
+
+#		echo trying to move $i after $j
+#		print-file "$i"
+#		print-file "$j"
+		if ((cur_size <= free_space)); then
+			# we can move! i moves after j
+			freeblocks[j]=0
+			freeblocks[i]=$((free_space - cur_size))
+
+			if ((i - 1 != j)); then
+				nextfile[i-1]=$((i+1))
+				((freeblocks[i-1] += (cur_size + i_free_space)))
+			fi
+
+			nextfile[j]=$i
+			nextfile[i]=$((j+1))
+
+			# recreate all arrays
+			recreate-all-arrays
+			((i++))
+
+			break
+		fi
+	done
+	#print-all
+done
+
+print-all > final.txt
+print-all
+
+calculate-checksum

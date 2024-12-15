@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+# read the data (it's just one line luckily)
+echo reading data
+read -r compressed
+
+# decompress the data
+echo decompressing data
+decompressed=()
+
+# loop each character of the compressed (input) string
+len=${#compressed}
+for ((i = 0; i < len; i++)); do
+	# this number tells us how many there are
+	num=${compressed:i:1}
+
+	char=
+	if ((i % 2 == 0)); then
+		# index is even, we have a block
+		# represent this block using its index - we can simply divide
+		# our current position by 2 and chop off the decimal place (done
+		# automatically for us) to figure this out
+		idx=$((i / 2))
+		char=$idx
+	else
+		# index is odd, we have free space
+		char='.'
+	fi
+
+	# append $num $char's to the output string $decompressed
+	for ((j = 0; j < num; j++)); do
+		decompressed+=("$char")
+	done
+done
+
+# defrag the data
+echo defragmenting data
+
+# initialize the final string
+defragmented=("${decompressed[@]}")
+
+# loop every char of decompressed and construct a new string optionally pulling
+# the char from the reversed list
+len=${#defragmented[@]}
+j=$len
+
+for ((i = 0; i < j; i++)); do
+	if ((i % 1000 == 0)); then
+		echo defrag step $i of $j
+	fi
+
+	# do a single-step of defragmentation
+	char=${defragmented[i]}
+	if [[ $char == '.' ]]; then
+		# find the first number at the end of the list
+		while true; do
+			((j--))
+			new_char=${defragmented[j]}
+
+			if [[ $new_char != '.' ]]; then
+				# we found one, swap them
+				temp=${defragmented[i]}
+				defragmented[i]=${defragmented[j]}
+				defragmented[j]=$temp
+				break
+			fi
+		done
+	fi
+done
+
+printf '%s\n' "${defragmented[@]}" > defrag.out
+
+# generate checksum
+echo generating checksum
+accum=0
+len=${#defragmented[@]}
+for ((i = 0; i < len; i++)); do
+	if ((i % 1000 == 0)); then
+		echo checksum step $i of $len
+	fi
+	num=${defragmented[i]}
+
+	if [[ $num == '.' ]]; then
+		break
+	fi
+
+	((accum += num * i))
+done
+
+echo "checksum = $accum"
