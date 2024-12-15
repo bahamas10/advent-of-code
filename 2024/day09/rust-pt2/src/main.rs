@@ -10,8 +10,8 @@ struct FilePage {
     pub free_after: u64,
 }
 
-fn print_pages(pages: &[FilePage]) {
- //   let mut s = String::new();
+fn serialize_pages(pages: &[FilePage]) -> String {
+    let mut s = String::new();
     for page in pages {
         /*
         let name = format!("({})", page.name);
@@ -22,9 +22,13 @@ fn print_pages(pages: &[FilePage]) {
             s.push('.');
         }
         */
-        println!("page {}: size {} free {}", page.name, page.size, page.free_after);
+        let line = format!(
+            "page {}: size {} free {}\n",
+            page.name, page.size, page.free_after
+        );
+        s.push_str(&line);
     }
-//    println!("{}", s);
+    s
 }
 
 fn generate_checksum(pages: &[FilePage]) -> u64 {
@@ -71,9 +75,20 @@ fn main() -> Result<()> {
 
     let page_len = pages.len();
     let mut i = page_len - 1;
+    let mut counter = 0;
     'main: while i > 0 {
-        //print_pages(&pages);
+        //let s = serialize_pages(&pages);
+        //let fname = format!("rust-{}.txt", counter);
+        // fs::write(fname, &s)?;
+        counter += 1;
+
         let move_size = pages[i].size;
+
+        // println!("trying to move {}", pages[i].name);
+
+        if pages[i].name == 4867 {
+            println!("counter={},i={}", counter, i);
+        }
 
         for j in 0..i {
             let free_avail = pages[j].free_after;
@@ -106,7 +121,9 @@ fn main() -> Result<()> {
         // if we weren't able to move the block, try the next one to the left
         i -= 1;
     }
-    print_pages(&pages);
+    let s = serialize_pages(&pages);
+    let fname = "done.txt";
+    fs::write(fname, &s)?;
     let cksum = generate_checksum(&pages);
     println!("checksum = {}", cksum);
 

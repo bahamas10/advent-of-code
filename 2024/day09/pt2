@@ -24,21 +24,21 @@ print-all() {
 		local size=${filesize[i]}
 		local free=${freeblocks[i]}
 
-		for ((j = 0; j < size; j++)); do
-			echo -n "$name"
-		done
-		for ((j = 0; j < free; j++)); do
-			echo -n .
-		done
+		echo "page $name: size $size free $free"
+#		for ((j = 0; j < size; j++)); do
+#			echo -n "$name"
+#		done
+#		for ((j = 0; j < free; j++)); do
+#			echo -n .
+#		done
 	done
-	echo
+#	echo
 }
 calculate-checksum() {
 	local i j
 	local accum=0
 	local len=${#filenames[@]}
-	j=0
-	total=0
+	local total=0
 	for ((i = 0; i < len; i++)); do
 		local name=${filenames[i]}
 		local size=${filesize[i]}
@@ -61,10 +61,14 @@ recreate-all-arrays() {
 	local new_filesize=()
 	local new_filenames=()
 
+	#echo before
+	#parr filenames
 	local len=${#nextfile[@]}
 	local i
+	#echo $len
+	#parr nextfile
 	for ((i = 0; i < len; i++)); do
-		[[ $nf == 'null' ]] && break
+		#[[ $nf == 'null' ]] && break
 		local name=${filenames[nf]}
 		local size=${filesize[nf]}
 		local free=${freeblocks[nf]}
@@ -75,9 +79,11 @@ recreate-all-arrays() {
 		new_filesize+=("$size")
 		new_freeblocks+=("$free")
 
-#		echo "$nf -> ${nextfile[nf]}"
 		nf=${nextfile[nf]}
 	done
+
+#	echo before
+#	parr filenames
 
 #	echo before
 #	printf "<%s>\n" "${filenames[@]}"
@@ -90,10 +96,13 @@ recreate-all-arrays() {
 #	echo done
 
 	local len=${#filenames[@]}
-	for ((i = 0; i < len; i++)); do
-		nextfile+=("$((i + 1))")
-	done
+	nextfile=( $(seq 1 "$len") )
+#	for ((i = 0; i < len; i++)); do
+#		nextfile+=("$((i + 1))")
+#	done
 
+#	echo after
+#	parr filenames
 }
 
 nextfile=()
@@ -123,41 +132,83 @@ freeblocks[idx]=0
 #print-all
 
 len=${#nextfile[@]}
-for ((i = len - 1; i >= 0; i--)); do
+startj=0
+declare -A has_moved
+echo $len
+for ((i = len - 1; i > 0; i--)); do
+	name=${filenames[i]}
+	if [[ -n ${has_moved[$name]} ]]; then
+		continue
+	fi
+	has_moved[$name]=1
+
 	# try to move this block as far left as possible
 	cur_size=${filesize[i]}
-	i_free_space=${freeblocks[i]}
-	echo "trying to move ${filenames[i]}"
-	for ((j = 0; j < i; j++)); do
+	echo "trying to move $i -> name ${filenames[i]} (startj = $startj)" >&2
+	for ((j = startj; j < i; j++)); do
 		free_space=${freeblocks[j]}
+		if ((j == startj + 1 && free_space == 0)); then
+			((startj++))
+		fi
 
 #		echo trying to move $i after $j
 #		print-file "$i"
 #		print-file "$j"
-		if ((cur_size <= free_space)); then
-			# we can move! i moves after j
-			freeblocks[j]=0
-			freeblocks[i]=$((free_space - cur_size))
+		if ((free_space < cur_size)); then
+#			echo "can't move $i -> $j"
+			continue
+		fi
 
-			if ((i - 1 != j)); then
-				nextfile[i-1]=$((i+1))
-				((freeblocks[i-1] += (cur_size + i_free_space)))
-			fi
+#		echo "can move $i (${filenames[i]}) -> $j (${filenames[j]})"
 
-			nextfile[j]=$i
-			nextfile[i]=$((j+1))
+		# we have room!
+		# a b (c) d e f (g) h
+		# 1. remove g
+		# 2. increase f free_after by g.size + g.free_after
+		# 3. set g.free_after to c.free_after - g.size
+		# 4. set c.free_after to 0
+		# 5. insert g to c+1 location
+		g=$i
+		c=$j
+		f=$((g - 1))
+
+		c_free_after=${freeblocks[c]}
+		g_free_after=${freeblocks[g]}
+		g_size=${filesize[g]}
+
+
+		# 1. and 5.
+		# only swap if needed
+		if ((g - c > 1)); then
+			# 2.
+			((freeblocks[f] += g_free_after + g_size))
+
+			# 3.
+			((freeblocks[g] = c_free_after - g_size))
+
+			# 4.
+			freeblocks[c]=0
+
+			nextfile[c]=$g
+			nextfile[f]=${nextfile[g]}
+			nextfile[g]=$((c+1))
 
 			# recreate all arrays
 			recreate-all-arrays
-			((i++))
+		else
+			((freeblocks[g] += freeblocks[c]))
+			freeblocks[c]=0
+			# don't swap them, just update free space
 
-			break
+
 		fi
+
+		((i++)) # try again
+		break
 	done
 	#print-all
 done
 
-print-all > final.txt
-print-all
+print-all | tee final.txt
 
 calculate-checksum
