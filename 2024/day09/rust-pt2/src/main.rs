@@ -11,17 +11,20 @@ struct FilePage {
 }
 
 fn print_pages(pages: &[FilePage]) {
-    let mut s = String::new();
+ //   let mut s = String::new();
     for page in pages {
-        let name = format!("{}", page.name);
+        /*
+        let name = format!("({})", page.name);
         for _ in 0..page.size {
             s.push_str(&name);
         }
         for _ in 0..page.free_after {
             s.push('.');
         }
+        */
+        println!("page {}: size {} free {}", page.name, page.size, page.free_after);
     }
-    println!("{}", s);
+//    println!("{}", s);
 }
 
 fn generate_checksum(pages: &[FilePage]) -> u64 {
@@ -69,10 +72,10 @@ fn main() -> Result<()> {
     let page_len = pages.len();
     let mut i = page_len - 1;
     'main: while i > 0 {
-        print_pages(&pages);
+        //print_pages(&pages);
         let move_size = pages[i].size;
 
-        for j in 0..(i - 1) {
+        for j in 0..i {
             let free_avail = pages[j].free_after;
 
             if free_avail < move_size {
@@ -99,6 +102,8 @@ fn main() -> Result<()> {
             pages.insert(j + 1, g);
             continue 'main;
         }
+
+        // if we weren't able to move the block, try the next one to the left
         i -= 1;
     }
     print_pages(&pages);
