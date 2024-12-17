@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+
+. parr
+
+# read the data into matrix
+declare -A matrix
+height=0
+width=0
+trailheads=()
+while read -r line; do
+	width=${#line}
+
+	for ((x = 0; x < width; x++)); do
+		char=${line:x:1}
+		key=$x,$height
+		matrix[$key]=$char
+
+		if [[ $char == 0 ]]; then
+			trailheads+=("$key")
+		fi
+	done
+
+	((height++))
+done
+
+finalscore=0
+
+# given a set of coordinates, look in all 4 cardinal directions (if possible) to
+# find the next valid location
+check-path() {
+	local num=$1
+	local location=$2
+
+	local x y
+	IFS=, read -r x y <<< "$location"
+
+	# check bounds
+	if ((x < 0 || x >= width)); then
+		return
+	fi
+	if ((y < 0 || y >= height)); then
+		return
+	fi
+
+	#echo in bounds $x,$y
+
+	# check what we have
+	local have=${matrix[$location]}
+	if ((num != have)); then
+		return
+	fi
+
+	# we are done!
+	if ((num == 9)) && [[ -z ${nines[$location]} ]]; then
+		((finalscore++))
+		nines[$location]=1
+		return
+	fi
+
+	# look in all 4 directions
+	local wantnum=$((num + 1))
+	local newx newy
+
+	# check south
+	newx=$x
+	newy=$((y + 1))
+	check-path "$wantnum" "$newx,$newy"
+
+	# check north
+	newx=$x
+	newy=$((y - 1))
+	check-path "$wantnum" "$newx,$newy"
+
+	# check east
+	newx=$((x + 1))
+	newy=$y
+	check-path "$wantnum" "$newx,$newy"
+
+	# check west
+	newx=$((x - 1))
+	newy=$y
+	check-path "$wantnum" "$newx,$newy"
+}
+
+
+# loop all the data looking for trailheads
+echo "found ${#trailheads[@]} trailheads"
+
+declare -A nines
+for trailhead in "${trailheads[@]}"; do
+	echo "checking trailhead $trailhead"
+	check-path 0 "$trailhead"
+	unset nines
+	declare -A nines
+done
+
+echo "final score is $finalscore"
