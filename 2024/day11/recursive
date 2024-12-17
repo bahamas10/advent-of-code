@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+stone=$1
+iters=$2
+
+stones=("$stone")
+
+total=0
+step() {
+	local newarray=()
+	local stone
+	for stone in "${stones[@]}"; do
+		if ((stone == 0)); then
+			newarray+=(1)
+		elif ((${#stone} % 2 == 0)); then
+			local len=${#stone}
+			local middle=$((len / 2))
+			local first=${stone:0:middle}
+			local second=${stone:middle}
+			newarray+=( $((10#$first)) )
+			newarray+=( $((10#$second)) )
+		else
+			newarray+=( $((stone * 2024)) )
+		fi
+	done
+	stones=( "${newarray[@]}" )
+}
+
+echo "${stones[@]}"
+for ((i = 0; i < iters; i++)); do
+	step
+	((total++))
+	echo "${#stones[@]}: ${stones[@]}"
+done
+echo total=$total

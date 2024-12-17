@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+declare -A stones
+read -ra inputs
+
+. parr
+
+for input in "${inputs[@]}"; do
+	((stones[$input] += 1))
+done
+parr inputs
+for i in {1..75}; do
+	unset new_stones
+	declare -A new_stones
+	for stone in "${!stones[@]}"; do
+		n=${stones[$stone]}
+		#echo "$stone -> $n"
+		if ((stone == 0)); then
+			((new_stones[1] += n))
+		elif ((${#stone} % 2 == 0)); then
+			len=${#stone}
+			middle=$((len / 2))
+			first=${stone:0:middle}
+			second=${stone:middle}
+			num1=$((10#$first))
+			num2=$((10#$second))
+			((new_stones[$num1] += n))
+			((new_stones[$num2] += n))
+		else
+			((new_stones[$((stone * 2024))] += n))
+		fi
+	done
+	unset stones
+	declare -A stones
+	for key in "${!new_stones[@]}"; do
+		stones[$key]=${new_stones[$key]}
+	done
+done
+
+total=0
+for key in "${!new_stones[@]}"; do
+	value=${new_stones[$key]}
+	echo "$key is $value"
+	((total += value))
+done
+
+echo total = $total

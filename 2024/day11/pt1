@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+read -ra stones
+
+DEBUG=0
+debug() {
+	((DEBUG == 1)) && echo "> $@"
+}
+
+# run the algorithm once on this
+step() {
+	local newarray=()
+	local stone
+	for stone in "${stones[@]}"; do
+		if ((stone == 0)); then
+			newarray+=(1)
+			continue
+		elif ((${#stone} % 2 == 0)); then
+			debug even digits found with $stone
+			local len=${#stone}
+			local middle=$((len / 2))
+			local first=${stone:0:middle}
+			local second=${stone:middle}
+			first=${first#0*}
+			second=${second#0*}
+			[[ -n $first ]] || first=0
+			[[ -n $second ]] || second=0
+			newarray+=("$first" "$second")
+		else
+			newarray+=( $((stone * 2024)) )
+		fi
+	done
+
+	stones=("${newarray[@]}")
+}
+
+print-stones() {
+	echo "${stones[*]}"
+}
+
+print-stones
+for i in {1..25}; do
+	step
+#	print-stones
+done
+
+echo "have ${#stones[@]}"
