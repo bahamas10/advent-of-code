@@ -1,0 +1,325 @@
+#!/usr/bin/env bash
+
+. parr
+
+declare -A seen
+declare -A map
+region_area=()
+region_coords=()
+region_sides=()
+
+height=0
+width=0
+while read -r line; do
+	width=${#line}
+
+	for ((x = 0; x < width; x++)); do
+		char=${line:x:1}
+		key=$x,$height
+		map[$key]=$char
+	done
+
+	((height++))
+done
+
+find-regions() {
+	local char=$1
+	local coords=$2
+	local region=$3
+
+	# check all 4 directions
+	local x y
+	IFS=, read x y <<< "$coords"
+
+	# check bounds
+	if ((x < 0 || x >= width)); then
+		# hit perimeter
+		return
+	fi
+	if ((y < 0 || y >= height)); then
+		# hit perimeter
+		return
+	fi
+
+	# check what we have
+	local have=${map[$coords]}
+	if [[ $char != $have ]]; then
+		# hit perimeter
+		return
+	fi
+
+	# leave if we have seen this spot before
+	if [[ -n ${seen[$coords]} ]]; then
+		return
+	fi
+	seen[$coords]=1
+
+	# keep track of these coords in the region
+	local s=${region_coords[region]:-}
+	s+="$coords "
+	region_coords[region]=$s
+
+	# increment area
+	local area=${region_area[region]:-0}
+	((area++))
+	region_area[region]=$area
+
+	local newx newy
+
+	# check south
+	newx=$x
+	newy=$((y + 1))
+	find-regions "$char" "$newx,$newy" "$region"
+
+	# check north
+	newx=$x
+	newy=$((y - 1))
+	find-regions "$char" "$newx,$newy" "$region"
+
+	# check east
+	newx=$((x + 1))
+	newy=$y
+	find-regions "$char" "$newx,$newy" "$region"
+
+	# check west
+	newx=$((x - 1))
+	newy=$y
+	find-regions "$char" "$newx,$newy" "$region"
+}
+
+# loop every element of the map
+region=0
+for ((y = 0; y < height; y++)); do
+	for ((x = 0; x < width; x++)); do
+		coords=$x,$y
+		char=${map[$coords]}
+
+		if [[ -z ${seen[$coords]} ]]; then
+			find-regions "$char" "$coords" "$region"
+			((region++))
+		fi
+	done
+done
+
+for region in "${!region_coords[@]}"; do
+	value=${region_coords[region]}
+	read -ra all_coords <<< "$value"
+	first=${all_coords[0]}
+	char=${map[$first]}
+	perims=()
+
+	echo "checking region $region (char $char)"
+
+	declare -A down_perims=()
+	declare -A up_perims=()
+	declare -A left_perims=()
+	declare -A right_perims=()
+
+	# count the number of sides in this region
+	for coord in "${all_coords[@]}"; do
+		IFS=, read -r x y <<< "$coord"
+
+		newx=$x
+		newy=$((y + 1))
+		havechar=${map[$newx,$newy]}
+		if [[ $char != $havechar ]]; then
+			perims+=("$x,$y,v")
+			down_perims[$x,$y]=1
+		fi
+
+		# check north
+		newx=$x
+		newy=$((y - 1))
+		havechar=${map[$newx,$newy]}
+		if [[ $char != $havechar ]]; then
+			perims+=("$x,$y,^")
+			up_perims[$x,$y]=1
+		fi
+
+		# check east
+		newx=$((x + 1))
+		newy=$y
+		havechar=${map[$newx,$newy]}
+		if [[ $char != $havechar ]]; then
+			perims+=("$x,$y,>")
+			left_perims[$x,$y]=1
+		fi
+
+		# check west
+		newx=$((x - 1))
+		newy=$y
+		havechar=${map[$newx,$newy]}
+		if [[ $char != $havechar ]]; then
+			perims+=("$x,$y,<")
+			right_perims[$x,$y]=1
+		fi
+	done
+	#parr up_perims
+
+	# calculate num sides
+	sides=0
+
+	# perims has all the perims for that region
+
+	# check up sides
+	up_sides=0
+	while true; do
+		# grab a single key and try to find the neighboors
+		first=("${!up_perims[@]}")
+		first=${first[0]}
+		if [[ -z $first ]]; then
+			break
+		fi
+
+		IFS=, read -r x y <<< "$first"
+		for ((newx = x + 1; newx < width; newx++)); do
+			key=$newx,$y
+			thing=${up_perims[$key]}
+			if [[ -z $thing ]]; then
+				break
+			fi
+
+			# throw it out
+			unset up_perims[$key]
+		done
+		for ((newx = x - 1; newx >= 0; newx--)); do
+			key=$newx,$y
+			thing=${up_perims[$key]}
+			if [[ -z $thing ]]; then
+				break
+			fi
+
+			# throw it out
+			unset up_perims[$key]
+		done
+
+		unset up_perims[$first]
+		((up_sides++))
+	done
+
+	# check down sides
+	down_sides=0
+	while true; do
+		# grab a single key and try to find the neighboors
+		first=("${!down_perims[@]}")
+		first=${first[0]}
+		if [[ -z $first ]]; then
+			break
+		fi
+
+		IFS=, read -r x y <<< "$first"
+		for ((newx = x + 1; newx < width; newx++)); do
+			key=$newx,$y
+			thing=${down_perims[$key]}
+			if [[ -z $thing ]]; then
+				break
+			fi
+
+			# throw it out
+			unset down_perims[$key]
+		done
+		for ((newx = x - 1; newx >= 0; newx--)); do
+			key=$newx,$y
+			thing=${down_perims[$key]}
+			if [[ -z $thing ]]; then
+				break
+			fi
+
+			# throw it out
+			unset down_perims[$key]
+		done
+
+		unset down_perims[$first]
+		((down_sides++))
+	done
+
+	# check right sides
+	right_sides=0
+	while true; do
+		# grab a single key and try to find the neighboors
+		first=("${!right_perims[@]}")
+		first=${first[0]}
+		if [[ -z $first ]]; then
+			break
+		fi
+
+		IFS=, read -r x y <<< "$first"
+		for ((newy = y + 1; newy < height; newy++)); do
+			key=$x,$newy
+			thing=${right_perims[$key]}
+			if [[ -z $thing ]]; then
+				break
+			fi
+
+			# throw it out
+			unset right_perims[$key]
+		done
+		for ((newy = y - 1; newy >= 0; newy--)); do
+			key=$x,$newy
+			thing=${right_perims[$key]}
+			if [[ -z $thing ]]; then
+				break
+			fi
+
+			# throw it out
+			unset right_perims[$key]
+		done
+
+		unset right_perims[$first]
+		((right_sides++))
+	done
+
+	# check left
+	left_sides=0
+	while true; do
+		# grab a single key and try to find the neighboors
+		first=("${!left_perims[@]}")
+		first=${first[0]}
+		if [[ -z $first ]]; then
+			break
+		fi
+
+		IFS=, read -r x y <<< "$first"
+		for ((newy = y + 1; newy < height; newy++)); do
+			key=$x,$newy
+			thing=${left_perims[$key]}
+			if [[ -z $thing ]]; then
+				break
+			fi
+
+			# throw it out
+			unset left_perims[$key]
+		done
+		for ((newy = y - 1; newy >= 0; newy--)); do
+			key=$x,$newy
+			thing=${left_perims[$key]}
+			if [[ -z $thing ]]; then
+				break
+			fi
+
+			# throw it out
+			unset left_perims[$key]
+		done
+
+		unset left_perims[$first]
+		((left_sides++))
+	done
+
+	sides=$((right_sides + left_sides + down_sides + up_sides))
+	echo "we found $sides total sides " \
+		"(> $right_sides)" \
+		"(< $left_sides)" \
+		"(^ $up_sides)" \
+		"(v $down_sides)"
+	region_sides[region]=$sides
+done
+
+accum=0
+len=${#region_area[@]}
+for ((i = 0; i < len; i++)); do
+	area=${region_area[i]}
+	sides=${region_sides[i]}
+	product=$((area * sides))
+	((accum += product))
+done
+echo "total price is $accum"

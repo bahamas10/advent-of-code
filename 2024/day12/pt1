@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+
+. parr
+
+declare -A seen
+declare -A map
+region_perimeter=()
+region_area=()
+
+height=0
+width=0
+while read -r line; do
+	width=${#line}
+
+	for ((x = 0; x < width; x++)); do
+		char=${line:x:1}
+		key=$x,$height
+		map[$key]=$char
+	done
+
+	((height++))
+done
+
+increment-perimeter() {
+	local region=$1
+	local v=${region_perimeter[region]:-0}
+	((v++))
+	region_perimeter[region]=$v
+}
+
+check-price() {
+	local char=$1
+	local coords=$2
+	local region=$3
+
+	# check all 4 directions
+	local x y
+	IFS=, read x y <<< "$coords"
+
+	# check bounds
+	if ((x < 0 || x >= width)); then
+		increment-perimeter "$region"
+		return
+	fi
+	if ((y < 0 || y >= height)); then
+		increment-perimeter "$region"
+		return
+	fi
+
+	# check what we have
+	local have=${map[$coords]}
+	if [[ $char != $have ]]; then
+		increment-perimeter "$region"
+		return
+	fi
+
+	# leave if we have seen this spot before
+	if [[ -n ${seen[$coords]} ]]; then
+		return
+	fi
+	seen[$coords]=1
+
+	# increment area
+	local area=${region_area[region]:-0}
+	((area++))
+	region_area[region]=$area
+
+	local newx newy
+
+	# check south
+	newx=$x
+	newy=$((y + 1))
+	check-price "$char" "$newx,$newy" "$region"
+
+	# check north
+	newx=$x
+	newy=$((y - 1))
+	check-price "$char" "$newx,$newy" "$region"
+
+	# check east
+	newx=$((x + 1))
+	newy=$y
+	check-price "$char" "$newx,$newy" "$region"
+
+	# check west
+	newx=$((x - 1))
+	newy=$y
+	check-price "$char" "$newx,$newy" "$region"
+
+}
+
+# loop every element of the map
+region=0
+for ((y = 0; y < height; y++)); do
+	for ((x = 0; x < width; x++)); do
+		coords=$x,$y
+		char=${map[$coords]}
+
+		if [[ -z ${seen[$coords]} ]]; then
+			check-price "$char" "$coords" "$region"
+			((region++))
+		fi
+	done
+done
+
+accum=0
+len=${#region_area[@]}
+for ((i = 0; i < len; i++)); do
+	area=${region_area[i]}
+	perim=${region_perimeter[i]}
+	product=$((area * perim))
+	((accum += product))
+done
+echo "total price is $accum"
