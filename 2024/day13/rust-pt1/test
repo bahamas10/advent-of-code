@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+        #// (8400 - 0*94) / 22 = 381.xxxxx (has remainder is what we want)
+#Button A: X+94, Y+34
+#Button B: X+22, Y+67
+#Prize: X=8400, Y=5400
+
+prize=8400
+a_inc=94
+b_inc=22
+
+prize=5400
+a_inc=34
+b_inc=67
+
+max=$((prize / b_inc))
+for ((i = 0; i <= max; i++)); do
+	rem=$(((prize - (i*a_inc)) % b_inc))
+	echo "$i rem $rem"
+done

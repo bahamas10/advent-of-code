@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+
+# ex: Button A: X+69, Y+23
+button_re='^Button [AB]: X\+([0-9]+), Y\+([0-9]+)$'
+# ex: Prize: X=8400, Y=5400
+prize_re='^Prize: X=([0-9]+), Y=([0-9]+)$'
+
+final_price=0
+
+fatal() {
+	echo 'FATAL' "$@" >&2
+	exit 1
+}
+
+check-machine() {
+	local a=$1
+	local b=$2
+	local p=$3
+
+	local ax ay bx by px py
+	IFS=, read -r ax ay <<< "$a"
+	IFS=, read -r bx by <<< "$b"
+	IFS=, read -r px py <<< "$p"
+
+	echo "checking machine"
+	echo "$ax,$ay | $bx,$by | $px,$py"
+
+	# check if it's possible by using gcd
+	local gcd=$(./gcd "$ax" "$bx")
+	if ((px % gcd != 0)); then
+		echo "puzzle can't be solved in X direction"
+		return
+	fi
+	local gcd=$(./gcd "$ay" "$by")
+	if ((py % gcd != 0)); then
+		echo "puzzle can't be solved in Y direction"
+		return
+	fi
+
+	echo "puzzle might be able to be solved"
+	return
+
+	declare -A valid
+
+	local max_ay max_ax max_by max_bx
+	max_ax=$((px / ax))
+	max_bx=$((px / bx))
+	max_ay=$((py / ay))
+	max_by=$((py / by))
+
+	echo "max_ax = $max_ax"
+	echo "max_bx = $max_bx"
+	echo "max_ay = $max_ay"
+	echo "max_by = $max_by"
+
+	# find all valid combos to get to X
+	# (i * ax) + (j * bx) == px
+	local i j lhs rhs
+	for ((i = 0; i <= max_ax; i++)); do
+		for ((j = 0; j <= max_bx; j++)); do
+			lhs=$(((i * ax) + (j * bx)))
+			rhs=$px
+			if ((lhs == rhs)); then
+				((valid[$i,$j]++))
+				echo "X: match! a $i times, b $j times"
+			fi
+		done
+	done
+
+	# find all valid combos to get to Y
+	# (i * ay) + (j * by) == py
+	for ((i = 0; i <= max_ay; i++)); do
+		for ((j = 0; j <= max_by; j++)); do
+			lhs=$(((i * ay) + (j * by)))
+			rhs=$py
+			if ((lhs == rhs)); then
+				((valid[$i,$j]++))
+				echo "Y: match! a $i times, b $j times"
+			fi
+		done
+	done
+
+	# find those that were valid in both
+	local key value
+	local totest=()
+	for key in "${!valid[@]}"; do
+		value=${valid[$key]}
+		if ((value == 2)); then
+			# this one was valid for X and Y!
+			echo "yay! it was $key"
+			totest+=("$key")
+		fi
+	done
+
+	local len
+	len=${#totest[@]}
+	echo "found $len valid button combos"
+
+	if ((len == 0)); then
+		# this is impossible
+		return
+	fi
+
+	# test to see which one is cheapest
+	local lowest_price=
+	for valid in "${totest[@]}"; do
+		IFS=, read -r a b <<< "$totest"
+		local price=$((a * 3 + b))
+
+		if [[ -z $lowest_price ]]; then
+			lowest_price=$price
+		elif ((price < lowest_price)); then
+			lowest_price=$price
+		fi
+	done
+
+	echo "lowest price was $lowest_price"
+	((final_price += lowest_price))
+}
+
+i=0
+a=
+b=
+p=
+while read -r line; do
+	case "$((i % 4))" in
+		0) # button A
+			[[ $line =~ $button_re ]] || fatal 'regex fail'
+			x=${BASH_REMATCH[1]}
+			y=${BASH_REMATCH[2]}
+			a=$x,$y
+			;;
+		1) # button B
+			[[ $line =~ $button_re ]] || fatal 'regex fail'
+			x=${BASH_REMATCH[1]}
+			y=${BASH_REMATCH[2]}
+			b=$x,$y
+			;;
+		2) # prize
+			# process prize
+			[[ $line =~ $prize_re ]] || fatal 'regex fail'
+			x=$((${BASH_REMATCH[1]} + 10000000000000))
+			y=$((${BASH_REMATCH[2]} + 10000000000000))
+			x=$((${BASH_REMATCH[1]}))
+			y=$((${BASH_REMATCH[2]}))
+			p=$x,$y
+
+			# commit result
+			echo;echo;echo
+			check-machine "$a" "$b" "$p"
+			a=
+			b=
+			p=
+			;;
+		3) # nothing
+			;;
+	esac
+	((i++))
+done
+
+echo "final price = $final_price"

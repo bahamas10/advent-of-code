@@ -108,7 +108,7 @@ for region in "${!region_coords[@]}"; do
 	char=${map[$first]}
 	perims=()
 
-	echo "checking region $region (char $char)"
+#	echo "checking region $region (char $char)"
 
 	declare -A down_perims=()
 	declare -A up_perims=()
@@ -306,11 +306,11 @@ for region in "${!region_coords[@]}"; do
 	done
 
 	sides=$((right_sides + left_sides + down_sides + up_sides))
-	echo "we found $sides total sides " \
-		"(> $right_sides)" \
-		"(< $left_sides)" \
-		"(^ $up_sides)" \
-		"(v $down_sides)"
+#	echo "we found $sides total sides " \
+#		"(> $right_sides)" \
+#		"(< $left_sides)" \
+#		"(^ $up_sides)" \
+#		"(v $down_sides)"
 	region_sides[region]=$sides
 done
 
