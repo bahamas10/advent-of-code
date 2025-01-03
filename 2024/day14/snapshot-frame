@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+. ./vardump
+
+# example
+WIDTH=11
+HEIGHT=7
+# real
+WIDTH=101
+HEIGHT=103
+
+BEGIN=${1:-0}
+
+print-grid() {
+	local y x
+	for ((y = 0; y < HEIGHT; y += 1)); do
+		for ((x = 0; x < WIDTH; x++)); do
+			local key="$x,$y"
+			local c=${robots[$key]:-.}
+
+#			key="$x,$((y+1))"
+#			local c2=${robots[$key]}
+
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+# ex: p=0,4 v=3,-3
+re='^p=([0-9]+),([0-9]+) v=(-?[0-9]+),(-?[0-9]+)$'
+
+declare -A robots
+all=()
+while read -r line; do
+	[[ $line =~ $re ]] || exit 5
+
+	px=${BASH_REMATCH[1]}
+	py=${BASH_REMATCH[2]}
+	vx=${BASH_REMATCH[3]}
+	vy=${BASH_REMATCH[4]}
+
+	all+=("$px $py $vx $vy")
+	robots[$px,$py]=1
+done
+
+if ((BEGIN > 0)); then
+	robots=()
+	new_all=()
+	for robot in "${all[@]}"; do
+		read -r px py vx vy <<< "$robot"
+		((px += vx * BEGIN))
+		((py += vy * BEGIN))
+
+		# clamp the robot back into bounds
+		((px %= WIDTH))
+		((py %= HEIGHT))
+
+		# handle negative bounds
+		((px = (px + WIDTH) % WIDTH))
+		((py = (py + HEIGHT) % HEIGHT))
+
+		key=$px,$py
+		((robots[$key]++))
+		new_all+=("$px $py $vx $vy")
+	done
+	all=("${new_all[@]}")
+fi
+
+print-grid
+echo "iteration $BEGIN"

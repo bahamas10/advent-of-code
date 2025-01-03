@@ -1,0 +1,379 @@
+#!/usr/bin/env bash
+
+declare -A grid
+width=0
+height=0
+
+fatal() {
+	echo 'FATAL' "$@" >&2
+	exit 1
+}
+
+print-grid() {
+	local x y c
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local key=$x,$y
+			local c=${grid[$key]}
+			if [[ $key == $robot_loc ]]; then
+				c='@'
+			fi
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+declare -A TO_MOVE
+try-move-walls-up() {
+	local cur_x cur_y
+	IFS=, read -r cur_x cur_y <<< "$robot_loc"
+
+	local next_x=$cur_x
+	local next_y=$((cur_y - 1))
+
+	TO_MOVE=()
+	CAN_MOVE_UP=true
+	try-move-walls-up-inner "$next_x" "$next_y"
+
+	if $CAN_MOVE_UP; then
+		# shift everything up
+		local key value x y
+
+		# clear the existing walls
+		for key in "${!TO_MOVE[@]}"; do
+			IFS=, read -r x y <<< "$key"
+			key=$x,$y
+			grid[$key]='.'
+
+			key=$((x + 1)),$y
+			grid[$key]='.'
+		done
+
+		# put them back... shifted up
+		for key in "${!TO_MOVE[@]}"; do
+			IFS=, read -r x y <<< "$key"
+			((y--))
+			key=$x,$y
+			grid[$key]='['
+			key=$((x + 1)),$y
+			grid[$key]=']'
+		done
+
+		# move the robot
+		robot_loc=$next_x,$next_y
+	fi
+}
+
+try-move-walls-up-inner() {
+	local x=$1
+	local y=$2
+
+	local key=$x,$y
+	local c=${grid[$key]}
+
+	if [[ $c == '.' ]]; then
+		# we can move, just drop out here
+		true
+	elif [[ $c == '#' ]]; then
+		CAN_MOVE_UP=false
+	elif [[ $c == '[' ]]; then
+		key=$x,$y
+		TO_MOVE[$key]=1
+		try-move-walls-up-inner "$x" "$((y - 1))"
+		try-move-walls-up-inner "$((x + 1))" "$((y - 1))"
+	elif [[ $c == ']' ]]; then
+		key=$((x - 1)),$y
+		TO_MOVE[$key]=1
+		try-move-walls-up-inner "$((x - 1))" "$((y - 1))"
+		try-move-walls-up-inner "$x" "$((y - 1))"
+	fi
+}
+
+try-move-walls-down() {
+	local cur_x cur_y
+	IFS=, read -r cur_x cur_y <<< "$robot_loc"
+
+	local next_x=$cur_x
+	local next_y=$((cur_y + 1))
+
+	TO_MOVE=()
+	CAN_MOVE_UP=true
+	try-move-walls-down-inner "$next_x" "$next_y"
+
+	if $CAN_MOVE_UP; then
+		# shift everything up
+		local key value x y
+
+		echo we will move ${!TO_MOVE[@]}
+
+		# clear the existing walls
+		for key in "${!TO_MOVE[@]}"; do
+			IFS=, read -r x y <<< "$key"
+			key=$x,$y
+			grid[$key]='.'
+
+			key=$((x + 1)),$y
+			grid[$key]='.'
+		done
+
+		# put them back... shifted up
+		for key in "${!TO_MOVE[@]}"; do
+			IFS=, read -r x y <<< "$key"
+			((y++))
+			key=$x,$y
+			grid[$key]='['
+			key=$((x + 1)),$y
+			grid[$key]=']'
+		done
+
+		# move the robot
+		robot_loc=$next_x,$next_y
+	fi
+}
+
+try-move-walls-down-inner() {
+	local x=$1
+	local y=$2
+
+	local key=$x,$y
+	local c=${grid[$key]}
+
+	if [[ $c == '.' ]]; then
+		# we can move, just drop out here
+		true
+	elif [[ $c == '#' ]]; then
+		CAN_MOVE_UP=false
+	elif [[ $c == '[' ]]; then
+		key=$x,$y
+		TO_MOVE[$key]=1
+		try-move-walls-down-inner "$x" "$((y + 1))"
+		try-move-walls-down-inner "$((x + 1))" "$((y + 1))"
+	elif [[ $c == ']' ]]; then
+		key=$((x - 1)),$y
+		TO_MOVE[$key]=1
+		try-move-walls-down-inner "$((x - 1))" "$((y + 1))"
+		try-move-walls-down-inner "$x" "$((y + 1))"
+	fi
+}
+
+try-move-walls-right() {
+	local cur_x cur_y
+	IFS=, read -r cur_x cur_y <<< "$robot_loc"
+
+	local next_x=$((cur_x + 1))
+	local next_y=$cur_y
+
+	local final_x=$next_x
+	local final_y=$next_y
+
+	while true; do
+		local key_left=$final_x,$final_y
+		local c_left=${grid[$key_left]}
+
+		local key_right=$((final_x + 1)),$final_y
+		local c_right=${grid[$key_right]}
+
+		if [[ $c_left == '#' ]]; then
+			# we can't move this
+			return
+		elif [[ $c_left == '[' ]] && [[ $c_right == ']' ]]; then
+			# try again
+			((final_x += 2))
+		elif [[ $c_left == '.' ]]; then
+			# we can shift everything!
+			robot_loc=$next_x,$next_y
+			grid[$next_x,$next_y]='.'
+			local x y
+			local c='['
+			for ((x = next_x + 1; x <= final_x; x++)); do
+				local key=$x,$cur_y
+				grid[$key]=$c
+				if [[ $c == '[' ]]; then
+					c=']'
+				else
+					c='['
+				fi
+			done
+			return
+		else
+			echo how did we get here lol
+			echo c_left = $c_left, c_right = $c_right
+			echo next_x = $next_x, final_x = $final_x
+			break
+		fi
+	done
+}
+
+try-move-walls-left() {
+	local cur_x cur_y
+	IFS=, read -r cur_x cur_y <<< "$robot_loc"
+
+	local next_x=$((cur_x - 1))
+	local next_y=$cur_y
+
+	local final_x=$next_x
+	local final_y=$next_y
+
+	while true; do
+		local key_right=$final_x,$final_y
+		local c_right=${grid[$key_right]}
+
+		local key_left=$((final_x - 1)),$final_y
+		local c_left=${grid[$key_left]}
+
+		if [[ $c_right == '#' ]]; then
+			# we can't move this
+			return
+		elif [[ $c_right == ']' ]] && [[ $c_left == '[' ]]; then
+			# try again
+			((final_x -= 2))
+		elif [[ $c_right == '.' ]]; then
+			# we can shift everything!
+			robot_loc=$next_x,$next_y
+			grid[$next_x,$next_y]='.'
+			local x y
+			local c=']'
+			for ((x = next_x - 1; x >= final_x; x--)); do
+				local key=$x,$cur_y
+				grid[$key]=$c
+				if [[ $c == '[' ]]; then
+					c=']'
+				else
+					c='['
+				fi
+			done
+			return
+		else
+			echo how did we get here lol
+			echo c_left = $c_left, c_right = $c_right
+			echo next_x = $next_x, final_x = $final_x
+			break
+		fi
+	done
+}
+
+try-instruction() {
+	local instruction=$1
+
+	echo trying $instruction
+
+	local cur_x cur_y
+	IFS=, read -r cur_x cur_y <<< "$robot_loc"
+
+	local next_x=$cur_x
+	local next_y=$cur_y
+	case "$instruction" in
+		'^') ((next_y--));;
+		'v') ((next_y++));;
+		'<') ((next_x--));;
+		'>') ((next_x++));;
+	esac
+
+	local key=$next_x,$next_y
+	local c=${grid[$key]}
+
+	# we tried to go out of bounds - shouldn't happen
+	if [[ -z $c ]]; then
+		fatal "tried to go out of bounds with $next_x,$next_y"
+	fi
+
+	case "$c" in
+		'.') # open space, we can move here
+			robot_loc=$key
+			;;
+		'#') # immovable wall, we can't move here
+			# do nothing
+			;;
+		'[' | ']') # moveable obstacle, figure it out lol
+			case "$instruction" in
+				'^') try-move-walls-up;;
+				'v') try-move-walls-down;;
+				'<') try-move-walls-left;;
+				'>') try-move-walls-right;;
+			esac
+			;;
+		*) fatal "unexpected c '$c'";;
+	esac
+}
+
+# read initial grid
+robot_loc=
+while read -r line; do
+	[[ -n $line ]] || break
+	width=$((${#line} * 2))
+
+	for ((x = 0; x < ${#line}; x++)); do
+		key_left=$((x*2)),$height
+		key_right=$((x*2+1)),$height
+		c=${line:x:1}
+
+		case "$c" in
+			'#')
+				grid[$key_left]='#'
+				grid[$key_right]='#'
+				;;
+			'O')
+				grid[$key_left]='['
+				grid[$key_right]=']'
+				;;
+			'.')
+				grid[$key_left]='.'
+				grid[$key_right]='.'
+				;;
+			'@')
+				robot_loc=$key_left
+				grid[$key_left]='.'
+				grid[$key_right]='.'
+		esac
+	done
+
+	((height++))
+done
+
+echo "height=$height,width=$width,robot_loc=$robot_loc"
+
+# read instructions
+instructions=()
+while read -r line; do
+	len=${#line}
+	for ((i = 0; i < len; i++)); do
+		c=${line:i:1}
+		instructions+=("$c")
+	done
+done
+
+echo before
+print-grid
+
+# loop instructions and apply them one-by-one
+len=${#instructions[@]}
+i=0
+for instruction in "${instructions[@]}"; do
+	((i++))
+	printf 'trying %d/%d...\r' "$i" "$len"
+#	d=$(print-grid)
+#	sleep .1
+#	echo "$d"
+	try-instruction "$instruction"
+done
+echo
+
+echo after
+print-grid
+
+# grid is ready to be processed
+accum=0
+for ((y = 0; y < height; y++)); do
+	for ((x = 0; x < width; x++)); do
+		key=$x,$y
+		c=${grid[$key]}
+		[[ $c == '[' ]] || continue
+
+		# calculate GPS coordinates for box
+		score=$((100 * y + x))
+		((accum += score))
+	done
+done
+
+echo "final score is $accum"

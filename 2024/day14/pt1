@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+. ./vardump
+
+# example
+WIDTH=11
+HEIGHT=7
+# real
+WIDTH=101
+HEIGHT=103
+SIMULATIONS=100
+
+print-grid() {
+	local y x
+	for ((y = 0; y < HEIGHT; y++)); do
+		for ((x = 0; x < WIDTH; x++)); do
+			local key="$x,$y"
+			local c=${robots[$key]}
+			echo -n "${c:-.}"
+		done
+		echo
+	done
+}
+
+num-robots-in-area() {
+	local minx=$1
+	local maxx=$2
+	local miny=$3
+	local maxy=$4
+
+	local y x
+	local total=0
+	for ((y = miny; y < maxy; y++)); do
+		for ((x = minx; x < maxx; x++)); do
+			local key="$x,$y"
+			local c=${robots[$key]:-0}
+			((total += c))
+		done
+	done
+	echo "$total"
+}
+
+# ex: p=0,4 v=3,-3
+re='^p=([0-9]+),([0-9]+) v=(-?[0-9]+),(-?[0-9]+)$'
+
+declare -A robots
+while read -r line; do
+	[[ $line =~ $re ]] || exit 5
+
+	px=${BASH_REMATCH[1]}
+	py=${BASH_REMATCH[2]}
+	vx=${BASH_REMATCH[3]}
+	vy=${BASH_REMATCH[4]}
+
+	# simulate the robots movement
+	((px += vx * SIMULATIONS))
+	((py += vy * SIMULATIONS))
+
+	# clamp the robot back into bounds
+	((px %= WIDTH))
+	((py %= HEIGHT))
+
+	# handle negative bounds
+	((px = (px + WIDTH) % WIDTH))
+	((py = (py + HEIGHT) % HEIGHT))
+
+	# store final location
+	key=$px,$py
+	((robots[$key]++))
+done
+
+vardump robots
+print-grid
+
+# calculate the number of robots in each quadrant
+midx=$((WIDTH / 2))
+midy=$((HEIGHT / 2))
+I=$(  num-robots-in-area "$((midx + 1))" "$WIDTH" 0 "$((HEIGHT / 2))")
+II=$( num-robots-in-area 0       "$midx"  0 "$midy")
+III=$(num-robots-in-area 0       "$midx"  "$((midy + 1))" "$HEIGHT")
+IV=$( num-robots-in-area "$((midx + 1))" "$WIDTH" "$((midy + 1))" "$HEIGHT")
+
+((total = I * II * III * IV))
+echo "found robots $I * $II * $III * $IV = $total"

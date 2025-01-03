@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+
+declare -A grid
+width=0
+height=0
+
+fatal() {
+	echo 'FATAL' "$@" >&2
+	exit 1
+}
+
+print-grid() {
+	local x y c
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local key=$x,$y
+			local c=${grid[$key]}
+			if [[ $key == $robot_loc ]]; then
+				c='@'
+			fi
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+try-instruction() {
+	local instruction=$1
+
+	local cur_x cur_y
+	IFS=, read -r cur_x cur_y <<< "$robot_loc"
+
+	local next_x=$cur_x
+	local next_y=$cur_y
+	case "$instruction" in
+		'^') ((next_y--));;
+		'v') ((next_y++));;
+		'<') ((next_x--));;
+		'>') ((next_x++));;
+	esac
+
+	local key=$next_x,$next_y
+	local c=${grid[$key]}
+
+	# we tried to go out of bounds - shouldn't happen
+	[[ -n $c ]] || exit 4
+
+	case "$c" in
+		'.') # open space, we can move here
+			robot_loc=$key
+			;;
+		'#') # immovable wall, we can't move here
+			# do nothing
+			;;
+		'O') # moveable obstacle, figure it out lol
+			# keep trying until we hit a wall or a free-space
+			local final_x=$next_x
+			local final_y=$next_y
+			while true; do
+				case "$instruction" in
+					'^') ((final_y--));;
+					'v') ((final_y++));;
+					'<') ((final_x--));;
+					'>') ((final_x++));;
+				esac
+				key=$final_x,$final_y
+				c=${grid[$key]}
+				case "$c" in
+					'O') # keep trying
+						;;
+					'#') # stop here, we can't push anything
+						break;;
+					'.') # push the blocks
+						local next_key=$next_x,$next_y
+						local final_key=$final_x,$final_y
+						grid[$next_key]='.'
+						grid[$final_key]='O'
+						robot_loc=$next_key
+						break;;
+					*) fatal "unexpected c '$c'";;
+				esac
+			done
+			;;
+		*) fatal "unexpected c '$c'";;
+	esac
+}
+
+# read initial grid
+robot_loc=
+while read -r line; do
+	[[ -n $line ]] || break
+	width=${#line}
+
+	for ((x = 0; x < width; x++)); do
+		key=$x,$height
+		c=${line:x:1}
+		# if we see the robot, mark its location and treat that as an
+		# empty space
+		if [[ $c == '@' ]]; then
+			robot_loc=$key
+			c='.'
+		fi
+		grid[$key]=$c
+	done
+
+	((height++))
+done
+
+# read instructions
+instructions=()
+while read -r line; do
+	len=${#line}
+	for ((i = 0; i < len; i++)); do
+		c=${line:i:1}
+		instructions+=("$c")
+	done
+done
+
+echo before
+print-grid
+
+# loop instructions and apply them one-by-one
+len=${#instructions[@]}
+i=0
+for instruction in "${instructions[@]}"; do
+	((i++))
+	printf 'trying %d/%d...\r' "$i" "$len"
+	try-instruction "$instruction"
+done
+echo
+
+echo after
+print-grid
+
+# grid is ready to be processed
+accum=0
+for ((y = 0; y < height; y++)); do
+	for ((x = 0; x < width; x++)); do
+		key=$x,$y
+		c=${grid[$key]}
+		[[ $c == 'O' ]] || continue
+
+		# calculate GPS coordinates for box
+		score=$((100 * y + x))
+		((accum += score))
+	done
+done
+
+echo "final score is $accum"
