@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+
+. ./vardump || exit 1
+
+declare -A grid
+width=0
+height=0
+queue=()
+
+fatal() {
+	echo 'FATAL' "$@" >&2
+	exit 1
+}
+
+print-grid() {
+	local try_direction=$1
+	local try_location=$2
+	local x y c
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local key=$x,$y
+			local c=${grid[$key]}
+			if [[ $key == $start_location ]]; then
+				c='s'
+			fi
+			if [[ $key == $try_location ]]; then
+				c=$try_direction
+			fi
+			if [[ $key == $end_location ]]; then
+				c='e'
+			fi
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+enqueue-moves() {
+	local cur_location=$1
+	local cur_direction=$2
+	local cur_cost=$3
+	local cur_turns=$4
+
+	local x y
+	local next_direction
+	local move
+
+
+	# try move forward
+	IFS=, read -r x y <<< "$cur_location"
+	case "$cur_direction" in
+		'^') ((y--));;
+		'v') ((y++));;
+		'<') ((x--));;
+		'>') ((x++));;
+	esac
+	# put at beginning of queue
+	# '$x,$y|$direction|$cost|$moves ($x,y,$dir)'
+	move=("$x,$y|$cur_direction|$((cur_cost + 1))|$cur_turns")
+	queue+=("$move")
+
+	((cur_turns++))
+
+	# try move ccw
+	case "$cur_direction" in
+		'^') next_direction='<';;
+		'v') next_direction='>';;
+		'<') next_direction='v';;
+		'>') next_direction='^';;
+	esac
+	# put at end of queue
+	move=("$cur_location|$next_direction|$((cur_cost + 1000))|$cur_turns")
+	queue+=("$move")
+
+	# try move cw
+	case "$cur_direction" in
+		'^') next_direction='>';;
+		'v') next_direction='<';;
+		'<') next_direction='^';;
+		'>') next_direction='v';;
+	esac
+	# put at end of queue
+	move=("$cur_location|$next_direction|$((cur_cost + 1000))|$cur_turns")
+	queue+=("$move")
+
+
+#	echo enqueued moves
+#	vardump queue
+}
+
+# try moving to one of the places
+try-moves() {
+	local x y dir cost turns
+	LAST_TURN=0
+	WINNERS=()
+	BEST_SOLUTION=105497
+	while true; do
+		local move=${queue[-1]}
+		unset queue[-1]
+		if [[ -z $move ]]; then
+			fatal 'no more moves'
+		fi
+		#queue=("${queue[@]:1}")
+
+		# '$x,$y|$direction|$cost|$moves ($x,y,$dir)'
+
+		IFS='|' read -r loc dir cost turns <<< "$move"
+		if ((cost > BEST_SOLUTION)); then
+			continue
+		fi
+
+	#	echo "trying move $loc $dir ($cost) ($turns turns) (bs = $BEST_SOLUTION)"
+
+
+#		if ((turns > LAST_TURN)); then
+#			echo "turn: $LAST_TURN -> $turns"
+#			LAST_TURN=$turns
+#			if [[ -n "${WINNERS[0]}" ]]; then
+#				echo we are done
+#				printf '%d\n' "${WINNERS[@]}"
+#				exit 0
+#			fi
+#		fi
+
+		#print-grid "$dir" "$loc"
+		#sleep .1
+
+		# check if we've been here before
+		local n=${visited[$loc,$dir]:-99999999}
+		if ((n <= cost)); then
+			# weve been here before in a cheaper way
+#			echo visited
+			continue
+		fi
+		visited[$loc,$dir]=$cost
+
+		local c=${grid[$loc]}
+		if [[ $c == '#' ]]; then
+#			echo we hit a wall, give up on this attempt
+			continue
+		fi
+
+		if [[ $loc == $end_location ]]; then
+			if ((cost < BEST_SOLUTION)); then
+				BEST_SOLUTION=$cost
+			fi
+			echo "we won! $cost points"
+			continue
+		fi
+
+		# we hit a free space! let's try moving there
+		#[[ $c == '.' ]] || exit 5
+		enqueue-moves "$loc" "$dir" "$cost" "$turns"
+	done
+}
+
+# read initial grid
+start_location=
+end_location=
+start_direction='>'
+while read -r line; do
+	width=${#line}
+
+	for ((x = 0; x < width; x++)); do
+		key=$x,$height
+		c=${line:x:1}
+
+		if [[ $c == 'S' ]]; then
+			start_location=$key
+			c='.'
+		elif [[ $c == 'E' ]]; then
+			end_location=$key
+			c='.'
+		fi
+		grid[$key]=$c
+	done
+
+	((height++))
+done
+
+print-grid
+
+# Queue Format
+# (
+#     '$x,$y|$direction|$cost|$moves ($x,y,$dir)'
+# )
+queue=()
+declare -A visited
+
+# try to progress
+cur_direction=$start_direction
+cur_location=$start_location
+
+NUM_TURNS=0
+
+enqueue-moves "$cur_location" "$cur_direction" 0 ' '
+try-moves
+
+echo "best is $BEST_SOLUTION"
