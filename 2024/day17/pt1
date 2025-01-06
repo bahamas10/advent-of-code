@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+
+# initialize VM
+REGISTER_A=0
+REGISTER_B=0
+REGISTER_C=0
+OUTPUT=()
+PROGRAM=()
+INST_PTR=0
+PROGRAM_LEN=0
+
+fatal() {
+	echo '[FATAL]' "$@" >&2
+	exit 1
+}
+
+dump-vm-state() {
+	echo "++------- VM STATE -------++"
+	echo "(a=$REGISTER_A b=$REGISTER_B c=$REGISTER_C)"
+	echo "program length $PROGRAM_LEN - current instruction $INST_PTR"
+	echo "++------------------------++"
+}
+
+# read the program rom
+
+# input:
+# Register A: 729
+# Register B: 0
+# Register C: 0
+#
+# Program: 0,1,5,4,3,0
+
+dump-vm-state
+
+readarray -t input
+
+IFS=: read -r _ a <<< "${input[0]}"
+IFS=: read -r _ b <<< "${input[1]}"
+IFS=: read -r _ c <<< "${input[2]}"
+IFS=: read -r _ codes <<< "${input[4]}"
+IFS=, read -ra program <<< "${codes// }"
+
+# load program rom
+REGISTER_A=${a// }
+REGISTER_B=${b// }
+REGISTER_C=${c// }
+PROGRAM=("${program[@]}")
+PROGRAM_LEN=${#PROGRAM[@]}
+
+echo "Loaded Program: ${PROGRAM[*]}"
+dump-vm-state
+
+# Combo operands 0 through 3 represent literal values 0 through 3.
+# Combo operand 4 represents the value of register A.
+# Combo operand 5 represents the value of register B.
+# Combo operand 6 represents the value of register C.
+# Combo operand 7 is reserved and will not appear in valid programs.
+combo-operand() {
+	local o=$1
+	case "$o" in
+		0) echo 0;;
+		1) echo 1;;
+		2) echo 2;;
+		3) echo 3;;
+		4) echo "$REGISTER_A";;
+		5) echo "$REGISTER_B";;
+		6) echo "$REGISTER_C";;
+		7) fatal 'combo-operand reserved';;
+		*) fatal 'combo-operand';;
+	esac
+}
+
+# run the program
+step() {
+	local opcode=${PROGRAM[INST_PTR]}
+	local operand=${PROGRAM[INST_PTR + 1]}
+
+	case "$opcode" in
+		0) # adv, combo operand
+			operand=$(combo-operand "$operand")
+			numerator=$REGISTER_A
+			denominator=$((2 ** operand))
+			REGISTER_A=$((numerator / denominator))
+			;;
+		1) # bxl, literal operand
+			result=$((REGISTER_B ^ operand))
+			REGISTER_B=$result
+			;;
+		2) # bst, combo operand
+			operand=$(combo-operand "$operand")
+			REGISTER_B=$((operand % 8))
+			;;
+		3) # jnz, literal operand
+			if ((REGISTER_A != 0)); then
+				# do the jump
+				INST_PTR=$operand
+				return
+			fi
+			;;
+		4) # bxc, ignores operand
+			result=$((REGISTER_B ^ REGISTER_C))
+			REGISTER_B=$result
+			;;
+		5) # out, combo operand
+			operand=$(combo-operand "$operand")
+			OUTPUT+=("$((operand % 8))")
+			;;
+		6) # bdv, combo operand
+			operand=$(combo-operand "$operand")
+			numerator=$REGISTER_A
+			denominator=$((2 ** operand))
+			REGISTER_B=$((numerator / denominator))
+			;;
+		7) # cdv, combo operand
+			operand=$(combo-operand "$operand")
+			numerator=$REGISTER_A
+			denominator=$((2 ** operand))
+			REGISTER_C=$((numerator / denominator))
+			;;
+		*)
+			dump-vm-state
+			fatal "unknown opcode: $opcode"
+			;;
+	esac
+	((INST_PTR += 2))
+}
+
+while ((INST_PTR >= 0 && INST_PTR < PROGRAM_LEN)); do
+	step
+done
+
+dump-vm-state
+
+echo -n "output: "
+IFS=,; echo "${OUTPUT[*]}"

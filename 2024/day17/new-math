@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+A=0
+PROGRAM=(2 4 1 5 7 5 1 6 0 3 4 0 5 5 3 0)
+
+calculate() {
+	local A=$1
+	local B C result=0
+#	while ((A > 0)); do
+		((B = A % 8))
+		((B = B ^ 5))
+		((C = A / (2**B) ))
+		((B = B ^ 6))
+		((A = A / 8))
+		((B = B ^ C))
+		((result = B % 8))
+#	done
+	echo "$result"
+}
+
+try-all() {
+	local num=$1
+	local idx=$2
+	local base=$3
+	local match=${PROGRAM[len - idx - 1]}
+
+	echo "calling try-all with $idx $match (len $len)"
+
+	if ((idx == len)); then
+		# we made it to the end of the program rom
+		echo made it: $base
+		return
+	fi
+
+	local i ans
+	for ((i = num; i < num + 8; i++)); do
+		ans=$(calculate "$i")
+		if ((8#$ans == 8#$match)); then
+			try-all "$((i << 3))" "$((idx + 1))" "$i"
+		fi
+	done
+}
+
+idx=0
+len=${#PROGRAM[@]}
+
+try-all "$thing" "$idx"

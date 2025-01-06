@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+A=$1
+
+while ((A > 0)); do
+	A=$((A / 8))
+	echo $((A % 8))
+done

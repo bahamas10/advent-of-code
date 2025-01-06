@@ -1,0 +1,33 @@
+Loaded Program: 2 4 1 5 7 5 1 6 0 3 4 0 5 5 3 0
+
+bst 4 # B=A%8
+bxl 5 # B=B^5
+cdv 5 # C=A/2**B
+bxl 6 # B=B^6
+adv 3 # A=A/8
+bxc 0 # B=B^C
+out 5 # OUT=B
+jnz 0 # loop to beginning if A still has data
+
+000
+001
+010
+011
+100
+101
+110
+111
+
+bst 4 # B=A%8
+bxl 5 # B=B^5
+cdv 5 # C=A/2**B
+bxl 6 # B=B^6
+adv 3 # A=A/8
+bxc 0 # B=B^C
+
+bst - 000
+bxl - 101
+cdv - C=16/32
+bxl - B=101^110=011 (3)
+...
+bxc - B=011^000=011 (3)

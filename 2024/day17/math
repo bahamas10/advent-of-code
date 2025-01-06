@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+A=$1
+
+while ((A > 0)); do
+	((B = A % 8))
+	((B = B ^ 5))
+	((C = A / (2**B) ))
+	((B = B ^ 6))
+	((A = A / 8))
+	((B = B ^ C))
+	echo -n "$((B % 8)) "
+done
+echo
