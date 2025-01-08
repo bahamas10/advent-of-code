@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+. ./vardump
+
+# read avail towels
+read -r line
+s=${line//,}
+read -ra available <<< "$s"
+
+# read all patterns
+read
+readarray -t patterns
+
+solve-pattern() {
+	local pattern=$1
+
+	if [[ -z $pattern ]]; then
+		return 0
+	fi
+
+	local avail
+	for avail in "${available[@]}"; do
+		# if pattern starts with avail
+		if [[ $pattern == "$avail"* ]]; then
+			# call ourselves with the new smaller pattern (with
+			# avail removed)
+			newpattern=${pattern#$avail}
+
+			# if this returns 0 then we *know* it was a success so
+			# just stop here
+			if solve-pattern "$newpattern"; then
+				return 0
+			fi
+		fi
+	done
+
+	return 1
+}
+
+# try to solve the patterns
+solveable=0
+for pattern in "${patterns[@]}"; do
+	echo -n "$pattern: "
+	if solve-pattern "$pattern"; then
+		((solveable++))
+		echo solveable
+	else
+		echo unsolveable
+	fi
+done
+
+echo "$solveable can be solved"

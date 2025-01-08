@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+
+. ./vardump
+
+# read avail towels
+read -r line
+s=${line//,}
+read -ra available <<< "$s"
+
+# read all patterns
+read
+readarray -t patterns
+
+mkdir -p cache
+
+solve-pattern() {
+	local pattern=$1
+	local len=${#pattern}
+	shift
+
+	#echo solve-pattern $pattern >&2
+	#echo "${#FUNCNAME[@]} $pattern" >&2
+
+	# stop here if pattern is empty
+	if [[ -z $pattern ]]; then
+		#((cache[$1]++))
+		echo 1
+		return 0
+	fi
+
+	# check cache
+	local cached=$(cat "cache/$pattern" 2>/dev/null)
+	if [[ -n $cached ]]; then
+		echo "$cached"
+		return 0
+	fi
+
+	cached=0
+
+	# limit available to only those possible
+	local avail
+	for avail in "${foo[@]}"; do
+		local avail_len=${#avail}
+		if ((len < avail_len)); then
+			continue
+		fi
+
+		# if pattern starts with avail
+		if [[ $pattern == "$avail"* ]]; then
+			# call ourselves with the new smaller pattern (with
+			# avail removed)
+			newpattern=${pattern#$avail}
+			#echo removing $avail from $pattern >&2
+
+			# if this returns 0 then we *know* it was a success so
+			# just stop here
+			n=$(solve-pattern "$newpattern")
+			((cached += n))
+		fi
+	done
+
+	echo "$cached" > "cache/$pattern"
+	echo "$cached"
+	return 0
+}
+
+# warm cache
+for pattern in "${available[@]}"; do
+	foo=("${available[@]}")
+	echo caching $pattern
+	solve-pattern "$pattern"
+#	cache[$pattern]=1
+done
+
+# try to solve the patterns
+for pattern in "${patterns[@]}"; do
+	foo=()
+	for avail in "${available[@]}"; do
+		if [[ $pattern == *"$avail"* ]]; then
+			foo+=("$avail")
+		fi
+	done
+	echo "${#available[@]} available patterns, trying ${#foo[@]}"
+
+	solve-pattern "$pattern" 1
+done
+
+# look in cache to see how many were made
+total=0
+for pattern in "${patterns[@]}"; do
+	n=$(< "cache/$pattern")
+	echo "$n $pattern"
+	((total += n))
+done
+
+echo found $total
