@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+
+# example dimensions
+case "$1" in
+	example)
+		width=7
+		height=7
+		num_bytes=12
+		start_loc=0,0
+		end_loc=6,6
+		;;
+	real)
+		width=71
+		height=71
+		num_bytes=${2:-1024}
+		start_loc=0,0
+		end_loc=70,70
+		;;
+	*) exit 2;;
+esac
+
+print-grid() {
+	local x y
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local c=${grid[$x,$y]}
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+# solve the maze
+solve-maze() {
+	local queue=()
+	queue+=("$start_loc")
+
+	declare -A visited=()
+	while ((${#queue[@]} > 0)); do
+		# pop off first element from array
+		local pos=${queue[0]}
+		queue=("${queue[@]:1}")
+
+		local x y
+		IFS=, read -r x y <<< "$pos"
+		local key=$x,$y
+
+		# check if we are in bounds
+		if ((x < 0 || x >= width || y < 0 || y >= height)); then
+			continue
+		fi
+
+		# check if we have collision
+		local c=${grid[$key]}
+		if [[ $c == '#' ]]; then
+			continue
+		fi
+
+		# check if we've been here before
+		if [[ -n ${visited[$key]} ]]; then
+			continue
+		fi
+
+		# check if we won
+		if [[ $key == $end_loc ]]; then
+			return 0
+		fi
+
+		# this move is valid - mark it as seen
+		visited[$key]=1
+
+		# queue up trying all 4 directions
+		# north
+		nextx=$x
+		nexty=$((y - 1))
+		queue+=("$nextx,$nexty")
+
+		# south
+		nextx=$x
+		nexty=$((y + 1))
+		queue+=("$nextx,$nexty")
+
+		# east
+		nextx=$((x + 1))
+		nexty=$y
+		queue+=("$nextx,$nexty")
+
+		# west
+		nextx=$((x - 1))
+		nexty=$y
+		queue+=("$nextx,$nexty")
+	done
+
+	echo maze is unsolveable!
+	return 1
+}
+
+
+# initialize grid as all free
+declare -A grid=()
+for ((y = 0; y < height; y++)); do
+	for ((x = 0; x < width; x++)); do
+		grid[$x,$y]='.'
+	done
+done
+
+# simulate bytes falling
+i=0
+while read -r line; do
+	grid[$line]='#'
+	if ((++i == num_bytes)); then
+		break
+	fi
+done
+
+i=$num_bytes
+while true; do
+	# drop a new byte
+	read -r line
+	grid[$line]='#'
+	((i++))
+
+	printf 'adding (%s) %d...\n' "$line" "$i"
+
+	# try to solve the maze
+	if solve-maze; then
+		# this maze worked, try again
+		continue
+	fi
+
+	echo
+	echo "[$i] this obstacle broke the maze $line"
+	exit 0
+done

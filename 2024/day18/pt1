@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+
+# example dimensions
+case "$1" in
+	example)
+		width=7
+		height=7
+		num_bytes=12
+		start_loc=0,0
+		end_loc=6,6
+		;;
+	real)
+		width=71
+		height=71
+		num_bytes=1024
+		start_loc=0,0
+		end_loc=70,70
+		;;
+	*) exit 2;;
+esac
+
+declare -A grid=()
+
+print-grid() {
+	local x y
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local c=${grid[$x,$y]}
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+# initialize grid as all free
+for ((y = 0; y < height; y++)); do
+	for ((x = 0; x < width; x++)); do
+		grid[$x,$y]='.'
+	done
+done
+
+# simulate bytes falling
+i=0
+while read -r line; do
+	grid[$line]='#'
+	if ((++i == num_bytes)); then
+		break
+	fi
+done
+
+# show the maze we have to solve
+print-grid
+
+# solve the maze
+queue=()
+queue+=("$start_loc,0")
+i=0
+declare -A visited=()
+while ((${#queue[@]} > 0)); do
+	# pop off first element from array
+	pos=${queue[0]}
+	queue=("${queue[@]:1}")
+
+	printf '%d...\r' "$i"
+
+	IFS=, read -r x y steps <<< "$pos"
+	key=$x,$y
+
+	# check if we are in bounds
+	if ((x < 0 || x >= width || y < 0 || y >= height)); then
+		continue
+	fi
+
+	# check if we have collision
+	c=${grid[$key]}
+	if [[ $c == '#' ]]; then
+		continue
+	fi
+
+	# check if we've been here before
+	if [[ -n ${visited[$key]} ]]; then
+		continue
+	fi
+
+	# check if we won
+	if [[ $key == $end_loc ]]; then
+		echo
+		echo we won!
+		echo took $steps steps
+		exit 0
+	fi
+
+	# this move is valid - mark it as seen
+	visited[$key]=1
+	((steps++))
+
+	# queue up trying  all 4 directions
+	# north
+	nextx=$x
+	nexty=$((y - 1))
+	queue+=("$nextx,$nexty,$steps")
+
+	# south
+	nextx=$x
+	nexty=$((y + 1))
+	queue+=("$nextx,$nexty,$steps")
+
+	# east
+	nextx=$((x + 1))
+	nexty=$y
+	queue+=("$nextx,$nexty,$steps")
+
+	# west
+	nextx=$((x - 1))
+	nexty=$y
+	queue+=("$nextx,$nexty,$steps")
+	((i++))
+done
+
+echo maze is unsolveable
+exit 1
