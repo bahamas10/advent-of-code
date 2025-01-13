@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+declare -A grid=()
+
+. ./vardump
+
+WALL=$(tput setaf 1)
+FREE=$(tput dim)
+RST=$(tput sgr0)
+
+print-grid() {
+	local x y
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local c=${grid[$x,$y]}
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+# read the maze
+height=0
+while read -r line; do
+	width=${#line}
+	for ((x = 0; x < width; x++)); do
+		key=$x,$height
+		c=${line:x:1}
+		grid[$key]=$c
+	done
+
+	((height++))
+done
+
+echo "maze is $width x $height"
+
+print-grid
+
+radius=2
+startx=2
+starty=2
+
+echo
+for ((y = starty - radius; y <= starty + radius; y++)); do
+	diff=$((starty - y))
+	dist=${diff#-}
+	for ((x = startx - radius + dist; x <= startx + radius - dist; x++)); do
+		grid[$x,$y]='.'
+		#c=${grid[$x,$y]}
+		#echo $x,$y = $c
+	done
+done
+
+print-grid
