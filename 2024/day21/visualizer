@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+. ./vardump || exit
+
+declare -A grid=()
+
+RED=$(tput setab 1)
+GREEN=$(tput setab 2)
+RST=$(tput sgr0)
+
+print-grid() {
+	local x y
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local c=${grid[$x,$y]}
+			if ((cur_x == x && cur_y == y)); then
+				local color=$RED
+				if $press; then
+					color=$GREEN
+				fi
+				c=$color$c$RST
+			fi
+			echo -n " $c "
+		done
+		echo
+		echo
+	done
+}
+
+height=0
+while read -r line; do
+	width=${#line}
+
+	for ((x = 0; x < width; x++)); do
+		c=${line:x:1}
+		key=$x,$height
+		grid[$key]=$c
+
+		if [[ $c == 'A' ]]; then
+			start_x=$x
+			start_y=$height
+		fi
+	done
+
+	((height++))
+done
+
+cur_x=$start_x
+cur_y=$start_y
+instructions=$1
+len=${#instructions}
+
+print-grid
+sleep 1
+for ((i = 0; i < len; i++)); do
+	instruction=${instructions:i:1}
+	press=false
+	case "$instruction" in
+		'>') ((cur_x++));;
+		'<') ((cur_x--));;
+		'v') ((cur_y++));;
+		'^') ((cur_y--));;
+		'A') press=true;;
+	esac
+
+	d=$(print-grid)
+	sleep 1
+	clear
+	echo "$instructions ($i/$len)"
+	echo "$d"
+done

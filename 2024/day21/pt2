@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+
+readarray -t codes
+
+#. ./directional-steps
+#. ./numeric-steps
+#. ./steps-required
+. ./calculate-steps
+. ./vardump
+
+iters=${1:-25}
+
+# 1 direcitonal keypad for me (we push buttons directly)
+# 1 directional keypad for robot
+# 1 directional keypad for robot
+# 1 numeric keypad for robot
+#
+# every pointer starts at A
+
+accum=0
+for code in "${codes[@]}"; do
+	echo "$code"
+	declare -A steps=()
+	while read -r line; do
+		((steps[$line]++))
+	done < <(calculate-steps numeric "$code")
+	vardump steps
+
+	for ((i = 0; i < iters; i++)); do
+		declare -A newsteps=()
+		for key in "${!steps[@]}"; do
+			value=${steps[$key]}
+			while read -r line; do
+				((newsteps[$line]+=$value))
+			done < <(calculate-steps directional "$key")
+		done
+
+		declare -A steps=()
+		for key in "${!newsteps[@]}"; do
+			value=${newsteps[$key]}
+			steps[$key]=$value
+		done
+		#vardump steps
+	done
+
+	len=0
+	for key in "${!steps[@]}"; do
+		value=${steps[$key]}
+		step_len=${#key}
+		((len += step_len * value))
+	done
+
+	# numeric part of the code for calculating complexity
+	numeric=${code//[^0-9]}
+	numeric=${numeric##0}
+	# length of code for complexity
+
+	result=$((numeric * len))
+	echo "$code: $numeric * $len = $result"
+	((accum += result))
+done
+
+echo "total is $accum"

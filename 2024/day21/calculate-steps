@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+#. ./directional-steps
+#. ./numeric-steps
+. ./steps-required
+
+calculate-steps() {
+	local typ=$1
+	local code=$2
+
+	# calculate steps needed for walking the code
+	local len=${#code}
+	local i
+	for ((i = 0; i < len; i++)); do
+		if ((i == 0)); then
+			# we always start at A
+			local from='A'
+		else
+			local from=${code:i-1:1}
+		fi
+		local to=${code:i:1}
+
+		local steps=$(steps-required "$typ" "$from" "$to")
+
+		echo "${steps}A"
+	done
+}
+
+if ! (return &>/dev/null); then
+	calculate-steps "$@"
+fi

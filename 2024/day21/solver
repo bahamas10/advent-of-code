@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+
+. ./vardump || exit
+
+declare -A grid=()
+declare -A scorecard=()
+
+typ=$1
+instructions=$2
+
+case "$typ" in
+	numeric|n)
+		var='numeric_steps'
+		file=numeric-keypad.txt
+		declare -A scorecard=(
+			['A']=0
+			['0']=1
+			['3']=1
+			['2']=2
+			['6']=2
+			['1']=3
+			['5']=3
+			['9']=3
+			['8']=4
+			['4']=4
+			['7']=5
+		)
+		scorecard=(
+			['A']=0
+			['^']=1
+			['>']=1
+			['v']=2
+			['<']=3
+		)
+		;;
+	directional|d)
+		var='directional_steps'
+		file=directional-keypad.txt
+		scorecard=(
+			['A']=0
+			['^']=1
+			['>']=1
+			['v']=2
+			['<']=3
+		)
+		;;
+esac
+
+print-grid() {
+	local x y
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local c=${grid[$x,$y]}
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+solve-maze() {
+	local start_loc=$1
+	local end_loc=$2
+
+#	echo "solving for $start_loc to $end_loc"
+
+	# quit here if we are going to/from an obstacle
+	local c1=${grid[$start_loc]}
+	local c2=${grid[$end_loc]}
+
+	[[ $c1 == '#' ]] && return
+	[[ $c2 == '#' ]] && return
+
+	local queue=()
+	queue+=("$start_loc,")
+
+	declare -A visited=()
+	local possible=""
+	local score=0
+	local winning_moves=9999999
+	while ((${#queue[@]} > 0)); do
+		# pop off first element from array
+		local pos=${queue[0]}
+		queue=("${queue[@]:1}")
+
+		local x y
+		IFS=, read -r x y moves <<< "$pos"
+		local key=$x,$y
+
+		# check if we are in bounds
+		if ((x < 0 || x >= width || y < 0 || y >= height)); then
+			continue
+		fi
+
+		# check if we have collision
+		local c=${grid[$key]}
+		if [[ $c == '#' ]]; then
+			continue
+		fi
+
+		# check if we've been here before
+		if [[ -n ${visited[$key]} ]]; then
+			continue
+		fi
+
+		if ((${#moves} > winning_moves)); then
+			continue
+		fi
+
+		# check if we won
+		if [[ $key == $end_loc ]]; then
+			possible+="$moves "
+			winning_moves=${#moves}
+			((score++))
+			continue
+		fi
+
+		# this move is valid - mark it as seen
+		visited[$key]=1
+
+		# try to move in the cheapest location first
+#		nextx=$x
+#		nexty=$y
+#		local move=${moves: -1:1}
+#		if [[ -n $move ]]; then
+#			case "$move" in
+#				'>') ((nextx++));;
+#				'<') ((nextx--));;
+#				'v') ((nexty++));;
+#				'^') ((nexty--));;
+#			esac
+#			queue+=("$nextx,$nexty,$moves$move")
+#		fi
+
+		# queue up trying all 4 directions
+		# north
+		nextx=$x
+		nexty=$((y - 1))
+		queue+=("$nextx,$nexty,$moves^")
+
+		# south
+		nextx=$x
+		nexty=$((y + 1))
+		queue+=("$nextx,$nexty,${moves}v")
+
+		# east
+		nextx=$((x + 1))
+		nexty=$y
+		queue+=("$nextx,$nexty,$moves>")
+
+		# west
+		nextx=$((x - 1))
+		nexty=$y
+		queue+=("$nextx,$nexty,$moves<")
+	done
+
+	# cache it
+	skey="$c1|$c2"
+	solutions[$skey]=$possible
+	scores[$skey]=$winning_moves
+}
+
+height=0
+while read -r line; do
+	width=${#line}
+
+	for ((x = 0; x < width; x++)); do
+		c=${line:x:1}
+		key=$x,$height
+		grid[$key]=$c
+	done
+
+	((height++))
+done < "$file"
+
+declare -A solutions
+declare -A scores
+# find all solutions
+for key1 in "${!grid[@]}"; do
+	for key2 in "${!grid[@]}"; do
+		solve-maze "$key1" "$key2"
+	done
+done
+
+calculate-score() {
+	local i
+	local moves=$1
+	local len=${#moves}
+	local j=$len
+	local score=0
+
+	for ((i = 0; i < len; i++)); do
+		local c=${moves:i:1}
+		echo "=== $c" >&2
+		local n=${scorecard[$c]}
+
+		((score += n * j))
+		echo score=$score n=$n j=$j >&2
+
+		((j--))
+	done
+
+	echo "$score"
+}
+
+# optimize
+for key in "${!solutions[@]}"; do
+	value=${solutions[$key]}
+	read -ra possible <<< "$value"
+
+	min=99999
+	small=()
+	for p in "${possible[@]}"; do
+		new=$(tr -s '^><v' <<< "$p")
+		len=${#new}
+		if ((len < min)); then
+			min=$len
+			small=("$p")
+		elif ((len == min)); then
+			small+=("$p")
+		fi
+	done
+	possible=( "${small[@]}" )
+
+	max=0
+	final=''
+	for p in "${possible[@]}"; do
+		score=$(calculate-score "$p")
+		if ((score >= max)); then
+			final=$p
+			max=$score
+		fi
+	done
+	solutions[$key]=$final
+done
+
+copy() {
+	local -n t=$var
+	local key value
+	for key in "${!solutions[@]}"; do
+		value=${solutions[$key]}
+		t[$key]=$value
+	done
+	echo "${t[@]@A}"
+}
+declare -A "$var"
+copy

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+readarray -t codes
+
+#. ./directional-steps
+#. ./numeric-steps
+#. ./steps-required
+. ./calculate-steps
+
+# 1 direcitonal keypad for me (we push buttons directly)
+# 1 directional keypad for robot
+# 1 directional keypad for robot
+# 1 numeric keypad for robot
+#
+# every pointer starts at A
+
+accum=0
+for code in "${codes[@]}"; do
+#	echo "solving $code"
+
+	echo "$code"
+	a=$(calculate-steps numeric "$code")
+	echo "$a"
+	b=$(calculate-steps directional "$a")
+	echo "$b"
+	c=$(calculate-steps directional "$b")
+	echo "$c"
+
+
+	# numeric part of the code for calculating complexity
+	numeric=${code//[^0-9]}
+	numeric=${numeric##0}
+	# length of code for complexity
+	len=${#c}
+
+	result=$((numeric * len))
+	echo "$code: $numeric * $len = $result"
+#	echo "$c"
+	((accum += result))
+done
+
+echo "total is $accum"

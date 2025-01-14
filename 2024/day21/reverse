@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+. ./vardump || exit
+
+declare -A grid=()
+
+typ=$1
+instructions=$2
+
+case "$typ" in
+	numeric|n) file=numeric-keypad.txt;;
+	directional|d) file=directional-keypad.txt;;
+esac
+
+height=0
+while read -r line; do
+	width=${#line}
+
+	for ((x = 0; x < width; x++)); do
+		c=${line:x:1}
+		key=$x,$height
+		grid[$key]=$c
+
+		if [[ $c == 'A' ]]; then
+			start_x=$x
+			start_y=$height
+		fi
+	done
+
+	((height++))
+done < "$file"
+
+cur_x=$start_x
+cur_y=$start_y
+len=${#instructions}
+
+buttons=()
+for ((i = 0; i < len; i++)); do
+	instruction=${instructions:i:1}
+	press=false
+	case "$instruction" in
+		'>') ((cur_x++));;
+		'<') ((cur_x--));;
+		'v') ((cur_y++));;
+		'^') ((cur_y--));;
+		'A') buttons+=("${grid[$cur_x,$cur_y]}");;
+	esac
+done
+
+IFS=''
+echo "${buttons[*]}"

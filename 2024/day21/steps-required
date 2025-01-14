@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+. ./directional-steps
+. ./numeric-steps
+
+steps-required() {
+	local typ=$1
+	local from=$2
+	local to=$3
+
+	local key="$from|$to"
+	case "$typ" in
+		numeric|n) echo "${numeric_steps[$key]}";;
+		directional|d) echo "${directional_steps[$key]}";;
+		*) exit 1;;
+	esac
+}
+
+if ! (return &>/dev/null); then
+	steps-required "$@"
+fi
