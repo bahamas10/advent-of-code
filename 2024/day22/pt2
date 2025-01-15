@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+# calculate every possible move
+declare -A moves
+echo reading all moves
+for f in cache/actions/*/*.txt; do
+	s=${f##cache/actions/}
+	s=${s%.txt}
+	IFS='/' read -r num move <<< "$s"
+	moves[$move]=1
+done
+echo done reading all moves
+
+# loop over every possible move
+max=0
+len=${#moves[@]}
+echo "found $len moves"
+i=0
+for move in "${!moves[@]}"; do
+	((i++))
+	echo "working on $i / $len"
+	# sum up all the bananas this move will get us from each number
+	total=$(cat "cache/actions/"*"/$move.txt" | awk '{i+=$1}END{print i}')
+
+	if ((total > max)); then
+		winner=$move
+		max=$total
+	fi
+done
+
+echo "winner! $winner will get you $max bananas"

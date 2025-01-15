@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+. ./evolve-pt2
+
+readarray -t inputs
+
+mkdir -p cache/all
+accum=0
+for secret in "${inputs[@]}"; do
+	echo "processing $secret"
+	evolve "$secret" 2000 > "cache/all/$secret.txt"
+done

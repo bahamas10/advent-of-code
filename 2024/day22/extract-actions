@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+mkdir -p cache/actions
+for f in cache/all/*.txt; do
+	echo "$f"
+
+	num=${f##*/}
+	num=${num%.txt}
+	mkdir -p "cache/actions/$num"
+
+	buffer=()
+	while read -r _ price action; do
+		[[ -n $action ]] || continue
+		buffer+=("$action")
+
+		len=${#buffer[@]}
+		if ((len > 4)); then
+			buffer=("${buffer[@]:1}")
+		fi
+		len=${#buffer[@]}
+		if ((len == 4)); then
+			fname="cache/actions/$num/${buffer[*]}.txt"
+			if [[ ! -f $fname ]]; then
+				echo "$price" > "$fname"
+			fi
+		fi
+	done < "$f"
+done

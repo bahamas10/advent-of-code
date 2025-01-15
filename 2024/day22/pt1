@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+. ./evolve-pt1
+
+readarray -t inputs
+
+accum=0
+for secret in "${inputs[@]}"; do
+	echo -n "$secret: "
+	secret=$(evolve "$secret" 2000)
+	echo "$secret"
+	((accum+=secret))
+done
+echo "total = $accum"

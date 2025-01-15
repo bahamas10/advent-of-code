@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+
+evolve() {
+	local secret=$1
+	local n=$2
+	local result i price action last
+
+	for ((i = 0; i < n; i++)); do
+		# Calculate the result of multiplying the secret number by 64. Then, mix
+		# this result into the secret number. Finally, prune the secret number.
+		result=$((secret * 64))
+		((secret ^= result))
+		((secret %= 16777216))
+
+		# Calculate the result of dividing the secret number by 32. Round the
+		# result down to the nearest integer. Then, mix this result into the
+		# secret number.  Finally, prune the secret number.
+		result=$((secret / 32))
+		((secret ^= result))
+		((secret %= 16777216))
+
+		# Calculate the result of multiplying the secret number by 2048. Then,
+		# mix this result into the secret number. Finally, prune the secret
+		# number.
+		result=$((secret * 2048))
+		((secret ^= result))
+		((secret %= 16777216))
+
+		((price = secret % 10))
+
+		action=
+		if [[ -n $last ]]; then
+			((action = price - last))
+		fi
+		echo "$price $action"
+		last=$price
+	done
+
+}
+
+declare -A solutions
+while read -r num; do
+	buffer=()
+	declare -A seen=()
+	while read -r price action; do
+		[[ -n $action ]] || continue
+		buffer+=("$action")
+
+		len=${#buffer[@]}
+		if ((len > 4)); then
+			buffer=("${buffer[@]:1}")
+		fi
+		len=${#buffer[@]}
+		if ((len == 4)); then
+			key=${buffer[*]}
+			if [[ -n ${seen[$key]} ]]; then
+				continue
+			fi
+			seen[$key]=1
+
+			((solutions[$key]+=price))
+		fi
+	done < <(evolve "$num" 2000)
+done
+
+# loop over every possible move
+max=0
+len=${#solutions[@]}
+echo "found $len solutions"
+i=0
+for move in "${!solutions[@]}"; do
+	total=${solutions[$move]}
+	((i++))
+	echo "working on $i / $len"
+
+	if ((total > max)); then
+		winner=$move
+		max=$total
+	fi
+done
+
+echo "winner! $winner will get you $max bananas"
