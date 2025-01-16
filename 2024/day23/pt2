@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+. ./vardump
+
+# read *all* connections (will have dupes)
+echo read all connections
+declare -A connections
+while IFS='-' read -r a b; do
+	connections[$a]+=" $b"
+	connections[$b]+=" $a"
+done
+
+# normalize data (remove dupes)
+echo remove duplicates
+for key in "${!connections[@]}"; do
+	value=${connections[$key]}
+
+	read -ra values <<< "$value"
+	declare -A c=()
+	for value in "${values[@]}"; do
+		c[$value]=1
+	done
+	s=${!c[*]}
+	connections[$key]=" $s"
+done
+
+# look for all triply-connected nodes
+vardump connections
+exit
+
+echo find all triples
+declare -A triples=()
+clen=${#connections[@]}
+ci=1
+for a in "${!connections[@]}"; do
+	value=${connections[$a]}
+	read -ra neighbors <<< "$value"
+	len=${#neighbors[@]}
+
+	echo "a = $a ($ci/$clen)"
+	for ((i = 0; i < len; i++)); do
+		b=${neighbors[i]}
+		for ((j = i + 1; j < len; j++)); do
+			c=${neighbors[j]}
+
+			# we have a b and c, we know a-b and a-c, check b-c
+			if [[ "${connections[$b]}" == *" $c"* ]]; then
+				# we have a triple connection!
+				# sort them by name to avoid dupes
+				sorted=$(printf '%s\n%s\n%s\n' "$a" "$b" "$c" | sort)
+				key=${sorted//$'\n'/,}
+
+				triples[$key]=1
+			fi
+		done
+	done
+	((ci++))
+done
+#vardump -v triples
+
+# we have all the triples - find the ones that have at least 1 computer whose
+# name starts with "t"
+echo 'find all triples starting with "t"'
+t=()
+for key in "${!triples[@]}"; do
+	IFS=, read -ra computers <<< "$key"
+
+	for computer in "${computers[@]}"; do
+		if [[ $computer == t* ]]; then
+			t+=("$key")
+			continue 2
+		fi
+	done
+done
+
+echo "found ${#t[@]} possible computer clusters"
