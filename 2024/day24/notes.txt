@@ -1,0 +1,20 @@
+x=01101
+y=11111
+ans=101100
+
+  01101
++ 11111
+_______
+ 101100
+
+
+problems in 5,6,11,12
+
+
+probably wrong
+- z05,tst
+- sps,z11
+- z23,frt
+- pmd,cdh
+
+cgh,frt,pmd,sps,tst,z05,z11,z23

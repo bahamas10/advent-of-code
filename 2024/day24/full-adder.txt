@@ -1,0 +1,25 @@
+c0: 0 # initial carry
+y0: 1 # input y and x bits
+y1: 1
+y2: 0
+x0: 1
+x1: 1
+x2: 1
+
+x0  XOR y0     -> 0v1 # top-left xor
+c0  XOR 0v1    -> z00 # top-right xor (sum)
+c0  AND 0v1    -> 0v2 # middle and
+x0  AND y0     -> 0v3 # bottom-left and
+0v2 OR  0v3    -> c1  # bottom-right or (carry out)
+
+x1  XOR y1     -> 1v1
+c1  XOR 1v1    -> z01
+c1  AND 1v1    -> 1v2
+x1  AND y1     -> 1v3
+1v2 OR  1v3    -> c2
+
+x2  XOR y2     -> 2v1
+c2  XOR 2v1    -> z02
+c2  AND 2v1    -> 2v2
+x2  AND y2     -> 2v3
+2v2 OR  2v3    -> z03
