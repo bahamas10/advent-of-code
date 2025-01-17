@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+
+. ./vardump
+
+declare -A values=()
+declare -A wires=()
+declare -A equations=()
+
+# read the initial values
+while read -r wire value _; do
+	[[ -n $wire ]] || break
+	wire=${wire%:}
+
+	wires[$wire]=1
+	values[$wire]=$value
+
+	echo "$wire: $value"
+done
+echo
+
+# read the gate equations
+min_z=
+max_z=
+while read -r lhs op rhs _ wire _; do
+	[[ -n $lhs ]] || continue
+	[[ $lhs == '#' ]] && continue
+
+	wires[$wire]=1
+	equations[$wire]="$lhs $op $rhs"
+
+	# while we're here, let's find the highest and lowest z
+	if [[ $wire == z* ]]; then
+		num=${wire#z}
+		num=$((10#$num))
+		if [[ -z $min_z ]] || ((num < min_z)); then
+			min_z=$num
+		fi
+		if [[ -z $max_z ]] || ((num > max_z)); then
+			max_z=$num
+		fi
+	fi
+done
+
+#echo "we found ${#wires[@]} total wires"
+#echo "${#values[@]} have initial values set"
+#echo "min_z=$min_z max_z=$max_z"
+
+dive() {
+	local wire=$1
+	shift
+	local all+=("$wire")
+
+	local equation=${equations[$wire]}
+
+	if [[ -z $equation ]]; then
+		#echo "${all[*]}"
+		#echo "$wire"
+		return
+	fi
+
+	local lhs rhs op
+	read -r lhs op rhs <<< "$equation"
+	unset equations[$wire]
+
+	echo "$lhs $op $rhs -> $wire"
+
+	dive "$lhs" "${all[@]}"
+	dive "$rhs" "${all[@]}"
+}
+
+for ((i = 10#$min_z; i <= 10#$max_z; i++)); do
+	printf -v z 'z%02d' "$i"
+	printf -v x 'x%02d' "$i"
+	printf -v y 'y%02d' "$i"
+
+	# find every thing relevant to these
+	echo "# $z"
+	dive "$z"
+	echo
+done
+
+
+exit
+
+dive "${1:-z00}"
+
+# step through the list of wires and try to resolve as many as we can - we will
+# do this in a loop until we are fully done.
+
+keep_going='true'
+i=0
+while $keep_going; do
+#	echo "trying iteration $i"
+	keep_going='false'
+	for wire in "${!wires[@]}"; do
+		if [[ -n ${values[$wire]} ]]; then
+			# value already resolved - skip this one
+			continue
+		fi
+		keep_going='true'
+
+		# try to solve it
+		equation=${equations[$wire]}
+		read -r lhs op rhs <<< "$equation"
+
+		lhv=${values[$lhs]}
+		rhv=${values[$rhs]}
+
+		if [[ -n $lhv && -n $rhv ]]; then
+			# yay, we can solve this wire
+			case "$op" in
+				AND) result=$((lhv & rhv));;
+				OR) result=$((lhv | rhv));;
+				XOR) result=$((lhv ^ rhv));;
+			esac
+			values[$wire]=$result
+			#echo "solve $wire: $lhs $op $rhs ($lhv $op $rhv) = $result"
+		fi
+	done
+	((i++))
+done
+
+#echo we are done! all values are set
+
+# find all of the z values, in order, and calculate their binary representation
+s=
+for ((i = 10#$min_z; i <= 10#$max_z; i++)); do
+	printf -v wire 'z%02d' "$i"
+	value=${values[$wire]}
+	s=$value$s
+done
+
+dec=$((2#$s))
+echo "final is: $dec ($s)"
+echo ===
