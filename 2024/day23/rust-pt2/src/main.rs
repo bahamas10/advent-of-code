@@ -77,7 +77,6 @@ fn main() -> Result<()> {
                 break;
             }
         }
-
     }
 
     let mut answer = answer.unwrap();

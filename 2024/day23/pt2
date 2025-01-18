@@ -2,6 +2,8 @@
 
 . ./vardump
 
+
+
 # read *all* connections (will have dupes)
 echo read all connections
 declare -A connections
@@ -24,53 +26,70 @@ for key in "${!connections[@]}"; do
 	connections[$key]=" $s"
 done
 
-# look for all triply-connected nodes
-vardump connections
-exit
+min=-1
+answer=
+for root in "${!connections[@]}"; do
+	neighbors=${connections[$root]}
+	echo "checking $root with neighbors $neighbors"
 
-echo find all triples
-declare -A triples=()
-clen=${#connections[@]}
-ci=1
-for a in "${!connections[@]}"; do
-	value=${connections[$a]}
-	read -ra neighbors <<< "$value"
-	len=${#neighbors[@]}
+	declare -A seen=()
+	seen[$root]=1
 
-	echo "a = $a ($ci/$clen)"
-	for ((i = 0; i < len; i++)); do
-		b=${neighbors[i]}
-		for ((j = i + 1; j < len; j++)); do
-			c=${neighbors[j]}
+	read -ra neighbors <<< "$neighbors"
+	for neighbor in "${neighbors[@]}"; do
+		seen[$neighbor]=1
+	done
 
-			# we have a b and c, we know a-b and a-c, check b-c
-			if [[ "${connections[$b]}" == *" $c"* ]]; then
-				# we have a triple connection!
-				# sort them by name to avoid dupes
-				sorted=$(printf '%s\n%s\n%s\n' "$a" "$b" "$c" | sort)
-				key=${sorted//$'\n'/,}
-
-				triples[$key]=1
-			fi
+	for neighbor in "${neighbors[@]}"; do
+		grandneighbors=${connections[$neighbor]}
+		read -ra grandneighbors <<< "$grandneighbors"
+		for grandneighbor in "${grandneighbors[@]}"; do
+			((seen[$grandneighbor]++))
 		done
 	done
-	((ci++))
-done
-#vardump -v triples
 
-# we have all the triples - find the ones that have at least 1 computer whose
-# name starts with "t"
-echo 'find all triples starting with "t"'
-t=()
-for key in "${!triples[@]}"; do
-	IFS=, read -ra computers <<< "$key"
+	#vardump seen
 
-	for computer in "${computers[@]}"; do
-		if [[ $computer == t* ]]; then
-			t+=("$key")
-			continue 2
+	declare -A counts=()
+	for value in "${seen[@]}"; do
+		counts[$value]=1
+	done
+
+	sorted=( $(printf '%s\n' "${!counts[@]}" | sort -rn)   )
+
+	declare -A venn=()
+	for key in "${!seen[@]}"; do
+		value=${seen[$key]}
+		venn[$value]+=" $key"
+	done
+	#vardump venn
+
+	friends=''
+	for num in "${sorted[@]}"; do
+		subset=${venn[$num]}
+		friends+=" $subset "
+
+		read -ra friends_arr <<< "$friends"
+		if (( ${#friends_arr[@]} >= num )); then
+			if ((num > min)); then
+				min=$num
+				answer=$friends
+			fi
+			break
 		fi
 	done
 done
 
-echo "found ${#t[@]} possible computer clusters"
+read -ra answers <<< "$answer"
+
+# lol seriously? we can avoid sort though lmao
+mkdir -p ./foo
+cd ./foo || exit 1
+for answer in "${answers[@]}"; do
+	touch "$answer"
+done
+
+# let bash sort this by using globbing
+answer=(*)
+IFS=,
+echo "answer is ${answer[*]}"
