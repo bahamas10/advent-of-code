@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+
+. ./vardump
+
+keys=()
+locks=()
+
+height=0
+buffer=(0 0 0 0 0)
+typ=
+while read -r line; do
+	# check if we are done with this item
+	if [[ -z $line ]]; then
+		buffer=(0 0 0 0 0)
+		height=0
+
+		# push buffer onto correct array
+		continue
+	fi
+
+	if ((height == 6)); then
+		# this is the bottom row, we don't care about it
+		# just commit the buffer
+		s=${buffer[*]}
+		case "$typ" in
+			key) keys+=("$s");;
+			lock) locks+=("$s");;
+		esac
+		continue
+	fi
+
+	# check if we are starting a new item
+	if ((height == 0)); then
+		# figure out what this item is
+		if [[ $line == '.....' ]]; then
+			typ='key'
+		elif [[ $line == '#####' ]]; then
+			typ='lock'
+		else
+			exit 5
+		fi
+		((height++))
+		continue
+	fi
+
+	# we are inside the lock/key - count the # chars
+	for ((i = 0; i < 5; i++)); do
+		c=${line:i:1}
+		if [[ $c == '#' ]]; then
+			((buffer[i]++))
+		fi
+	done
+
+	((height++))
+done
+
+echo "found ${#keys[@]} keys and ${#locks[@]} locks"
+
+vardump keys
+vardump locks
+
+total=0
+for lock in "${locks[@]}"; do
+	for key in "${keys[@]}"; do
+		read -ra lock_pins <<< "$lock"
+		read -ra key_pins <<< "$key"
+
+		for ((i = 0; i < 5; i++)); do
+			lock_pin=${lock_pins[i]}
+			key_pin=${key_pins[i]}
+			if ((lock_pin + key_pin > 5)); then
+				# we don't fit!
+				continue 2
+			fi
+		done
+
+		# we fit!
+		((total++))
+	done
+done
+
+echo "we have total $total valid combos"
