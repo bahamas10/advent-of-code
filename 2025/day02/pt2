@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+is-valid() {
+	local num=$1
+	local len=${#num}
+	local mid=$((len / 2))
+
+	local i
+	for ((i = 1; i <= mid; i++)); do
+		local substr=${num:0:i}
+
+		# input: 123123123, len=9, mid=4
+		# 1, 12, 123, 1234
+
+		if ((len % i == 0)); then
+			# its divisible, this *could* be invalid
+			amount=$((len / i))
+
+			local j
+			local newstr=''
+			for ((j = 0; j < amount; j++)); do
+				newstr+=$substr
+			done
+
+			if ((newstr == num)); then
+				return 1
+			fi
+		fi
+	done
+
+	return 0
+}
+
+accum=0
+line=$(< /dev/stdin)
+IFS=, read -ra elements <<< "$line"
+
+total=${#elements[@]}
+n=1
+for element in "${elements[@]}"; do
+	IFS=- read -r low high <<< "$element"
+
+	echo "checking $n/$total"
+	for ((i = low; i <= high; i++)); do
+		if is-valid "$i"; then
+			true
+		else
+			# number is bad
+			echo "found invalid number: $i"
+			((accum += i))
+		fi
+	done
+	((n++))
+done
+
+echo "accum is $accum"

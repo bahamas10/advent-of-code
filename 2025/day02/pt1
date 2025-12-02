@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+
+is-valid() {
+	local num=$1
+	local len=${#num}
+	local mid=$((len / 2))
+
+	# odd numbers are auto-valid
+	if ((len % 2 == 1)); then
+		return 0
+	fi
+
+	local half=${num:0:mid}
+	local newnum=$half$half
+
+	((newnum != num))
+}
+
+accum=0
+line=$(< /dev/stdin)
+IFS=, read -ra elements <<< "$line"
+
+for element in "${elements[@]}"; do
+	IFS=- read -r low high <<< "$element"
+
+	echo "$low -> $high"
+	for ((i = low; i <= high; i++)); do
+		if is-valid "$i"; then
+			true
+		else
+			# number is bad
+			echo "found invalid number: $i"
+			((accum += i))
+		fi
+	done
+done
+
+echo "accum is $accum"
