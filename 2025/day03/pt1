@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+get-highest-joltage() {
+	local bank=$1
+	local len=${#bank}
+
+	local i j
+	local max=0
+	for ((i = 0; i < len - 1; i++)); do
+		local lhs=${bank:i:1}
+		for ((j = i + 1; j < len; j++)); do
+			local rhs=${bank:j:1}
+
+			local num=$lhs$rhs
+			if ((num > max)); then
+				max=$num
+			fi
+		done
+	done
+
+	echo "$max"
+}
+
+accum=0
+
+cur=1
+while read -r bank; do
+	echo "checking bank $cur"
+	num=${ get-highest-joltage "$bank"; }
+	((accum += num))
+	((cur++))
+done
+
+echo "accum is $accum"

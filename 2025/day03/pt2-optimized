@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+get-highest-joltage() {
+	local bank=("$@")
+	local len=${#bank}
+	local target=12
+
+	find-single-number "$target" "${bank[@]}"
+}
+
+find-single-number() {
+	local target=$1
+	shift
+	local bank=("$@")
+	local len=${#bank[@]}
+
+	echo "find-single-nuber <$target>: (${#bank[@]}) ${bank[*]} " >&2
+
+	if ((target == 0)); then
+		echo
+		return 0
+	fi
+
+	local j
+	for j in {9..1}; do
+		local i
+		for ((i = 0; i <= len - target; i++)); do
+			echo "if (( ${bank[i]} == $j ))" >&2
+			if (( ${bank[i]} == j)); then
+				echo -n $j
+
+				echo "found a $j at spot $i - using it" >&2
+				local starting_point=$((i + 1))
+				find-single-number "$((target - 1))" "${bank[@]:starting_point}"
+				return 0
+			fi
+		done
+	done
+
+	echo uh oh >&2
+	exit 1
+}
+
+accum=0
+
+cur=1
+while read -r bank; do
+	bank=(${bank//?/& }) # turn it into an array of each char
+
+	echo "checking bank $cur"
+	num=${ get-highest-joltage "${bank[@]}"; }
+	echo "bank $cur is $num"
+	((accum += num))
+	((cur++))
+done
+
+echo "accum is $accum"
