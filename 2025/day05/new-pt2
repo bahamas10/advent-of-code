@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+. ./../../lib/vardump || exit 1
+
+ranges=()
+while IFS=- read -r newmin newmax; do
+	[[ -z $newmin ]] && break
+	echo "======"
+	echo "====== trying to add $newmin-$newmax"
+	echo "======"
+	echo
+
+	if ((${#ranges[@]} == 0)); then
+		ranges+=("$newmin-$newmax")
+		continue
+	fi
+
+	vardump ranges
+
+	# find where this new range fits
+	added=false
+	for ((i = 0; i < ${#ranges[@]}; i++)); do
+		echo first i is $i
+		IFS=- read -r curmin curmax <<< "${ranges[i]}"
+
+		echo "checking against $curmin-$curmax"
+
+		# arr=(1-2 8-9) # < adding 3-4
+
+		if ((newmin > curmax)); then
+			echo "$newmin > $curmax, trying again"
+			continue
+		fi
+
+		added=true
+
+		if ((newmax < curmin)); then
+			echo "adding it to a new place"
+			new=()
+			if ((i != 0)); then
+				new=("${ranges[@]:0:i}")
+			fi
+			ranges=("${new[@]}" "$newmin-$newmax" "${ranges[@]:i}")
+			break
+		fi
+
+		# newmin fits into this range
+		smallest=$curmin
+		if ((newmin < curmin)); then
+			smallest=$newmin
+		fi
+		biggest=$curmax
+		if ((newmax > curmax)); then
+			biggest=$newmax
+		fi
+
+		ranges[i]=$smallest-$biggest
+		echo "tentative (1) range is ${ranges[i]}"
+
+		if ((newmax <= curmax)); then
+			echo "$newmax <= $curmax... just stopping here"
+			break
+		fi
+
+		# try to find where range ends
+		len=${#ranges[@]}
+		for ((j = i + 1; j < len; j++)); do
+			IFS=- read -r testmin testmax <<< "${ranges[j]}"
+
+			echo "checking against j=$j $testmin-$testmax"
+
+			if ((testmin > biggest)); then
+				break
+			fi
+
+			unset ranges[j]
+			if ((biggest > testmax)); then
+				echo "(j=$j) $newmax > $testmax, trying again"
+				continue
+			fi
+
+			ranges[i]=$smallest-$testmax
+			echo "final range is ${ranges[i]}"
+			break
+		done
+		break
+	done
+
+	if ! $added; then
+		ranges+=("$newmin-$newmax")
+	fi
+	ranges=( "${ranges[@]}" )
+
+	echo 'finished iteration'
+done
+
+vardump ranges
+
+total=0
+for range in "${ranges[@]}"; do
+	IFS=- read -r min max <<< "$range"
+	((total += max - min + 1))
+done
+
+echo "total is $total"

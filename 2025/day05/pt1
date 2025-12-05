@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+is-fresh() {
+	local ingredient=$1
+
+	echo "checking if $ingredient is fresh"
+
+	local range
+	for range in "${ranges[@]}"; do
+		local min max
+		IFS=- read -r min max <<< "$range"
+
+		echo "checking if between $min and $max"
+
+		if ((ingredient >= min && ingredient <= max)); then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+ranges=()
+while read -r line; do
+	[[ -z $line ]] && break
+	ranges+=("$line")
+done
+
+available=()
+while read -r line; do
+	available+=("$line")
+done
+
+echo "found ${#ranges[@]} and ${#available[@]} available ingredients"
+
+accum=0
+for avail in "${available[@]}"; do
+	if is-fresh "$avail"; then
+		((accum++))
+	fi
+done
+
+echo "found $accum fresh ingredients"

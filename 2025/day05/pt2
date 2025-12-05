@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+
+. ./../../lib/vardump || exit 1
+
+ranges=()
+while IFS=- read -r newmin newmax; do
+	[[ -z $newmin ]] && break
+	echo "newmin=$newmin, newmax=$newmax"
+
+	if ((${#ranges[@]} == 0)); then
+		ranges+=("$newmin" "$newmax")
+		continue
+	fi
+
+	vardump ranges
+
+	# find where this new range fits
+	added=false
+	for ((i = 0; i < ${#ranges[@]}; i += 2)); do
+		curmin=${ranges[i]}
+		curmax=${ranges[i+1]}
+
+		echo "curmin=$curmin, curmax=$curmax"
+
+		if ((newmin >= curmin && newmin <= curmax)); then
+			# the new range starts within this range
+
+			echo "the new range $newmin-$newmax starts within $curmin-$curmax"
+
+			# find out how far the range goes
+			for ((j = i; j < ${#ranges[@]}; j += 2)); do
+				testmin=${ranges[i]}
+				testmax=${ranges[i+1]}
+
+				if ((newmax > testmax)); then
+					echo "$newmax > $testmax"
+					# our end is outside of this range
+					echo removing $testmin and $testmax
+					unset ranges[j]
+					unset ranges[j+1]
+					ranges=( "${ranges[@]}" )
+					continue
+				elif ((newmax <= testmax && newmax >= testmin)); then
+					added=true
+					break
+				elif ((newmax < testmin)); then
+					ranges[i-1]=$testmax
+					added=true
+					break
+				fi
+			done
+			break
+		elif ((newmax < curmin)); then
+			new=()
+			((i != 0)) && new+=("${ranges[@]:0:i-1}")
+			new+=("$newmin" "$newmax")
+			new+=("${ranges[@]:i}")
+			ranges=( "${new[@]}" )
+			added=true
+			break
+		elif ((curmax > newmin)); then
+			# keep going, possible putting it to the end
+			true
+		fi
+	done
+
+	if ! $added; then
+		ranges+=("$newmin" "$newmax")
+	fi
+done
+
+vardump ranges
+
+total=0
+for ((i = 0; i < "${#ranges[@]}"; i += 2)); do
+	min=${ranges[i]}
+	max=${ranges[i+1]}
+
+	((total += max - min + 1))
+done
+
+echo "total is $total"
