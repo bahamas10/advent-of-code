@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+print-grid() {
+	local x y
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local c1=${map[$x,$y]}
+			local c2=${map[$x,$((y+1))]}
+			local c
+			if [[ $c1 == @ && $c2 == @ ]]; then
+				c='|'
+			elif [[ $c1 == @ ]]; then
+				c='^'
+			elif [[ $c2 == @ ]]; then
+				c='v'
+			else
+				c=' '
+			fi
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+declare -A map
+height=0
+while read -r line; do
+	width=${#line}
+	for ((x = 0; x < width; x++)); do
+		map[$x,$height]=${line:x:1}
+	done
+	((height++))
+done
+
+print-grid
+
+removed=0
+while true; do
+	didremove=false
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			c=${map[$x,$y]}
+
+			[[ $c == @ ]] || continue
+
+			# check all 8 directions lol who cares
+			#echo checking $x,$y
+			found=0
+			for ((yy = y - 1; yy <= y + 1; yy++)); do
+				for ((xx = x - 1; xx <= x + 1; xx++)); do
+					((xx == x && yy == y)) && continue
+					other=${map[$xx,$yy]}
+					if [[ $other == @ ]]; then
+						((found++))
+					fi
+				done
+			done
+			#echo found $found
+			if ((found < 4)); then
+				map[$x,$y]=.
+				((removed++))
+				didremove=true
+			fi
+		done
+	done
+	print-grid
+
+	$didremove || break
+done
+
+echo "total removed $removed"
