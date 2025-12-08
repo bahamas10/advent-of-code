@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+
+. ./../../lib/vardump || exit 1
+
+mapfile -t input
+
+numbers=()
+spaces=()
+operations=()
+
+# read the operations to figure out spacing
+line=${input[-1]}
+idx=-1
+for ((i = 0; i < ${#line}; i++)); do
+	c=${line:i:1}
+
+	case "$c" in
+		'+' | '*')
+			operations+=("$c")
+			((idx++))
+			;;
+		' ') ((spaces[idx]++));;
+	esac
+done
+
+((spaces[idx]++))
+unset input[-1]
+
+len=${#input[@]}
+# read the numbers
+for ((i = 0; i < len; i++)); do
+	line=${input[i]}
+
+	substart=0
+	for ((j = 0; j < ${#spaces[@]}; j++)); do
+		space=${spaces[j]}
+		num=${line:substart:space}
+
+		((substart += space + 1))
+
+		numbers[j]+="$num|"
+	done
+done
+
+
+# process each number
+total=0
+for ((i = 0; i < ${#numbers[@]}; i++)); do
+	IFS='|' read -ra elements <<< "${numbers[i]%|}"
+	operation=${operations[i]}
+
+	vardump elements
+	vardump operation
+
+	newnumbers=()
+	for elem in "${elements[@]}"; do
+		len=${#elem}
+		for ((j = 0; j < len; j++)); do
+			n=${elem:j:1}
+			if [[ $n != ' ' ]]; then
+				newnumbers[j]+=$n
+			fi
+		done
+	done
+
+	init=${newnumbers[0]}
+	for ((j = 1; j < ${#newnumbers[@]}; j++)); do
+		element=${newnumbers[j]}
+		case "$operation" in
+			'*') ((init *= element));;
+			'+') ((init += element));;
+		esac
+	done
+	((total += init))
+done
+
+echo "total is $total"

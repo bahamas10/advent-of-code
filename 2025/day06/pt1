@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+. ./../../lib/vardump || exit 1
+
+mapfile -t input
+
+numbers=()
+len=${#input[@]}
+
+# read the numbers
+for ((i = 0; i < len - 1; i++)); do
+	line=${input[i]}
+	read -ra columns <<< "$line"
+	for ((j = 0; j < ${#columns[@]}; j++)); do
+		numbers[j]+="${columns[j]} "
+	done
+done
+
+# read the operations
+line=${input[-1]}
+read -ra opers <<< "$line"
+
+# process each number
+total=0
+for ((i = 0; i < ${#numbers[@]}; i++)); do
+	read -ra elements <<< "${numbers[i]}"
+	operation=${opers[i]}
+
+	init=${elements[0]}
+	for ((j = 1; j < ${#elements[@]}; j++)); do
+		element=${elements[j]}
+		case "$operation" in
+			'*') ((init *= element));;
+			'+') ((init += element));;
+		esac
+	done
+	((total += init))
+done
+
+echo "total is $total"
