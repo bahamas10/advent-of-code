@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+
+. ./../../lib/vardump
+
+MAX=1000
+
+map=()
+connections=()
+
+while IFS=, read -r x y z; do
+	value=$x,$y,$z
+	map+=("$value")
+done
+
+calculate-distance() {
+	local key1=$1
+	local key2=$2
+
+	local x1 y1 z1
+	local x2 y2 z2
+
+	IFS=, read -r x1 y1 z1 <<< "$key1"
+	IFS=, read -r x2 y2 z2 <<< "$key2"
+
+	local d=$(( (x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2 ))
+
+	connections+=("$d $key1 $key2")
+}
+
+#echo calc distance of ${#map[@]} things
+#for ((i = 0; i < ${#map[@]}; i++)); do
+#	key1=${map[i]}
+#	for ((j = i + 1; j < ${#map[@]}; j++)); do
+#		key2=${map[j]}
+
+#		echo "i = $i, j = $j"
+#		calculate-distance "$key1" "$key2"
+#	done
+#done
+
+#echo sort it
+#mapfile -t distances < <(printf '%s\n' "${connections[@]}" | sort -n)
+
+echo reading cache
+mapfile -t distances < cache.txt
+
+declare -A boxes
+i=0
+for t in "${map[@]}"; do
+	boxes[$i]=" $t "
+	((i++))
+done
+
+#vardump boxes
+echo "num boxes ${#boxes[@]}"
+
+echo make connections
+connections=0
+declare -A cables=()
+i=0
+for thing in "${distances[@]}"; do
+	echo i is $i
+	((i++))
+	read -r distance key1 key2 <<< "$thing"
+
+	echo "key1=$key1"
+	echo "key2=$key2"
+
+	# find the connection ids for each box
+	for box_id in "${!boxes[@]}"; do
+		value=${boxes[$box_id]}
+
+		if [[ $value == *" $key1 "* && $value == *" $key2 "* ]]; then
+			((connections++))
+			if ((connections == MAX)); then
+				echo made $MAX connections
+				break 2
+			fi
+			echo skipping
+			continue 2
+		elif [[ $value == *" $key1 "* ]]; then
+			goodbox=$box_id
+		elif [[ $value == *" $key2 "* ]]; then
+			badbox=$box_id
+			keep=$value
+		fi
+	done
+
+	if [[ -z $badbox || -z $keep ]]; then
+		echo uh oh
+		exit 1
+	fi
+
+	unset boxes[$badbox]
+	boxes[$goodbox]+=" $keep "
+
+	((connections++))
+	if ((connections == MAX)); then
+		echo made $MAX connections
+		break
+	fi
+done
+
+vardump boxes
+echo "num boxes ${#boxes[@]}"
+
+numbers=()
+for box in "${boxes[@]}"; do
+	read -ra elems <<< "$box"
+	echo "found ${#elems[@]}"
+	len=${#elems[@]}
+	((numbers[len]++))
+done
+
+total=1
+while read -r key; do
+	echo "total is $total, multiplying by $key"
+	((total *= key))
+done < <(printf '%s\n' "${!numbers[@]}" | sort -n | tail -3)
+echo total is $total
