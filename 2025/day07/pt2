@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+
+. ./../../lib/vardump
+
+declare -A map
+
+set -f
+
+set-and-increment() {
+	local key=$1
+	local value=$2
+
+	echo "set-and-increment called: $key $value"
+
+	if [[ ${map[$key]} == '^' ]]; then
+		echo uh oh
+		exit 1
+	fi
+
+	if [[ ${map[$key]} == '.' ]]; then
+		echo "setting $key to $value"
+		map[$key]=$value
+	else
+		echo "incr $key (was ${map[$key]})"
+		((map[$key] += value))
+	fi
+}
+
+print-grid() {
+	local x y
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local c=${map[$x,$y]}
+			case "$c" in
+				'|') c=$'\e[35m|\e[0m';;
+			esac
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+# read input
+height=0
+start=
+while read -r line; do
+	width=${#line}
+	for ((x = 0; x < width; x++)); do
+		c=${line:x:1}
+		map[$x,$height]=$c
+
+		if [[ $c == 'S' ]]; then
+			starting_y=$height
+			map[$x,$height]=1
+		fi
+	done
+
+	((height++))
+done
+
+
+# simulate it line-by-line
+numsplits=0
+for ((y = starting_y; y < height; y++)); do
+	for ((x = 0; x < width; x++)); do
+		key=$x,$y
+		c=${map[$key]}
+		case "$c" in
+			'.' | '^') continue;;
+		esac
+
+		# we have a beam now, check 1 below it
+		nexty=$((y + 1))
+		nextkey=$x,$nexty
+
+		below=${map[$nextkey]}
+
+		case "$below" in
+			'.')
+				set-and-increment "$nextkey" "$c"
+				;;
+			'^')
+				((numsplits++))
+
+				# actually split the beam
+				lhx=$((x - 1))
+				rhx=$((x + 1))
+
+				set-and-increment "$lhx,$nexty" "$c"
+				set-and-increment "$rhx,$nexty" "$c"
+				;;
+			[0-9]*)
+				echo "looking at $key"
+				echo "found number, trying to increment $nextkey (starting at $c)"
+				set-and-increment "$nextkey" "$c"
+				;;
+			*)
+				echo "(stopping, got '$below')"
+				break 2;;
+		esac
+	done
+done
+
+echo "finished - performed $numsplits splits"
+
+print-grid
+
+finalrow=()
+for ((x = 0; x < width; x++)); do
+	y=$((height - 1))
+	key=$x,$y
+	c=${map[$key]}
+
+	if [[ $c != '.' ]]; then
+		finalrow+=("$c")
+	fi
+done
+
+vardump finalrow
+
+accum=0
+for num in "${finalrow[@]}"; do
+	((accum += num))
+done
+echo "accum is $accum"
