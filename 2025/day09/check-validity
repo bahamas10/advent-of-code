@@ -1,0 +1,300 @@
+#!/usr/bin/env bash
+
+. ./../../lib/vardump || exit 1
+
+input=$(< /dev/stdin)
+valid_rects=${1?}
+
+declare -A map=()
+declare -A linemap=()
+lines=()
+width=0
+height=0
+
+declare -A TIMERS=()
+time-start() {
+	local key=${1?}
+	local now=$EPOCHREALTIME
+	now=${now//.}
+	((now /= 1000))
+	TIMERS[$key]=$now
+}
+time-end() {
+	local key=${1?}
+
+	local now=$EPOCHREALTIME
+	now=${now//.}
+	((now /= 1000))
+	local then=${TIMERS[$key]}
+	local delta=$((now - then))
+
+	echo -e "\e[33mTIMER:\e[0m $key took ${delta}ms"
+}
+
+print-grid() {
+	if ((height > 100)); then
+		return
+	fi
+
+	local x y
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local c=${map[$x,$y]:-.}
+			case "$c" in
+				'#') c=$'\e[31m#\e[0m';;
+				'X') c=$'\e[32mX\e[0m';;
+			esac
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+
+uhoh() {
+	echo "uh oh" >&2
+	exit 1
+}
+
+is-valid() {
+	local prevX=$1
+	local prevY=$2
+	local curX=$3
+	local curY=$4
+
+	local minX=$((prevX < curX ? prevX : curX))
+	local maxX=$((prevX > curX ? prevX : curX))
+	local minY=$((prevY < curY ? prevY : curY))
+	local maxY=$((prevY > curY ? prevY : curY))
+
+	echo "checking if $prevX,$prevY -> $curX,$curY is valid"
+
+	time-start is-pixel-valid
+
+	is-pixel-valid "$((minX + 1))" "$((minY + 1))" || return 1
+	is-pixel-valid "$((minX + 1))" "$((maxY - 1))" || return 1
+	is-pixel-valid "$((maxX - 1))" "$((minY + 1))" || return 1
+	is-pixel-valid "$((maxX - 1))" "$((maxY - 1))" || return 1
+
+	time-end is-pixel-valid
+
+	return 0
+}
+
+is-pixel-valid() {
+	local x=$1
+	local y=$2
+
+	echo "  checking if $x,$y pixel is valid"
+
+	is-valid-in-direction "$x" "$y" L || return 1
+	is-valid-in-direction "$x" "$y" R || return 1
+	is-valid-in-direction "$x" "$y" D || return 1
+	is-valid-in-direction "$x" "$y" U || return 1
+
+	return 0
+}
+
+is-valid-in-direction() {
+	local x=$1
+	local y=$2
+	local direction=$3
+
+#	echo "    checking $x,$y ($direction) is valid"
+
+	local linescrossed=0
+	while true; do
+#		echo "      (iteration $x,$y)"
+		local key=$x,$y
+		local line=${linemap[$key]}
+
+		if [[ -n $line ]]; then
+			echo crossing line at $x,$y
+			((linescrossed++))
+
+#			if ((linescrossed > 1)); then
+#				return 1
+#			fi
+			local lines_hit
+			read -ra lines_hit <<< "$line"
+			#echo "hit ${#lines_hit[@]} at $key"
+			case "${#lines_hit[@]}" in
+				1) # not a corner
+					#echo line
+					line=${lines_hit[0]}
+					line=${lines[line]}
+					read -r dir x1 y1 x2 y2 <<< "$line"
+
+					#echo debug line=$line
+					;;
+				2) # is a corner
+					#echo corner
+					# get the line we care about
+					line1=${lines_hit[0]}
+					line2=${lines_hit[1]}
+					line1=${lines[line1]}
+					line2=${lines[line2]}
+					read -r dir x1 y1 x2 y2 <<< "$line1"
+					#echo dir=$dir
+					if [[ $dir == 'UD' && ( $direction == 'L' || $direction == 'R' ) ]] || [[ $dir == 'LR' && ( $direction == 'U' || $direction == 'D' ) ]]; then
+						#echo trying next line
+						read -r dir x1 y1 x2 y2 <<< "$line2"
+					fi
+					#echo debug line1=$line1, line2=$line2
+					;;
+				*) uhoh;;
+			esac
+			#echo we care about line $x1,$y1 to $x2,$y2
+			local minX=$((x2 < x1 ? x2 : x1))
+			local maxX=$((x2 > x1 ? x2 : x1))
+			local minY=$((y2 < y1 ? y2 : y1))
+			local maxY=$((y2 > y1 ? y2 : y1))
+			case "$direction" in
+				L)
+					##echo setting x from $x to $minX
+					x=$minX;;
+				R)
+					#echo setting x from $x to $maxX
+					x=$maxX;;
+				U)
+					#echo setting y from $y to $minY
+					y=$minY;;
+				D)
+					#echo setting y from $y to $maxY
+					y=$maxY;;
+				*) uhoh;;
+			esac
+		fi
+
+		case "$direction" in
+			L) ((x--));;
+			R) ((x++));;
+			U) ((y--));;
+			D) ((y++));;
+		esac
+
+		if ((x < 0 || x >= width || y < 0 || y >= height)); then
+			break
+		fi
+	done
+
+	#echo "    crossed $linescrossed lines"
+
+	if ((linescrossed % 2 == 0)); then
+#		echo "    NOT VALID"
+		return 1
+	fi
+#	echo "    VALID"
+	return 0
+}
+
+draw-line() {
+	local prevX=$1
+	local prevY=$2
+	local curX=$3
+	local curY=$4
+
+	local minX=$((prevX < curX ? prevX : curX))
+	local maxX=$((prevX > curX ? prevX : curX))
+	local minY=$((prevY < curY ? prevY : curY))
+	local maxY=$((prevY > curY ? prevY : curY))
+
+	echo "drawing line from $prevX,$prevY -> $curX,$curY"
+
+	local x y key
+	local lineno=${#lines[@]}
+	if ((prevX == curX)); then
+		# moving up and down
+		x=$curX
+		linemap[$x,$minY]+=" $lineno "
+		linemap[$x,$maxY]+=" $lineno "
+		for ((y = minY + 1; y < maxY; y++)); do
+			key=$x,$y
+			if [[ ${map[$key]} == '' ]]; then
+				map[$key]='X'
+				linemap[$key]=$lineno
+			fi
+		done
+		lines[lineno]="UD $prevX $prevY $curX $curY"
+	elif ((prevY == curY)); then
+		# moving side to side
+		y=$curY
+		linemap[$minX,$y]+=" $lineno "
+		linemap[$maxX,$y]+=" $lineno "
+		for ((x = minX + 1; x < maxX; x++)); do
+			key=$x,$y
+			if [[ ${map[$key]} == '' ]]; then
+				map[$key]='X'
+				linemap[$key]=$lineno
+			fi
+		done
+		lines[lineno]="LR $prevX $prevY $curX $curY"
+	else
+		echo uh oh
+		exit 1
+	fi
+}
+
+while IFS=, read -r x y; do
+	key=$x,$y
+	points+=("$key")
+	map[$key]='#'
+
+	if ((x > width)); then
+		width=$x
+	fi
+	if ((y > height)); then
+		height=$y
+	fi
+done <<< "$input"
+
+((width++))
+((height++))
+
+#print-grid
+
+# draw lines (green squares) between points
+prevX=
+while IFS=, read -r curX curY; do
+	if [[ -n $prevX ]]; then
+		draw-line "$prevX" "$prevY" "$curX" "$curY"
+	fi
+	prevX=$curX
+	prevY=$curY
+done <<< "$input"
+# wrap the puzzle
+IFS=, read -r curX curY <<< "$input"
+draw-line "$prevX" "$prevY" "$curX" "$curY"
+
+echo "found ${#lines[@]} lines"
+
+task() {
+	local x1=$x1
+	local y1=$y1
+	local x2=$x2
+	local y2=$y2
+
+	if is-valid "$x1" "$y1" "$x2" "$y2"; then
+		echo "$area" >> valid.txt
+	fi
+}
+
+i=0
+while read -r area x1 y1 x2 y2; do
+	if [[ $area == '#'* ]]; then
+		continue
+	fi
+	echo "PROCESSING $i ($area)"
+	((i++))
+	task "$x1" "$y1" "$x2" "$y2" &
+
+	running[$!]=1
+
+	if ((${#running[@]} >= 30)); then
+		wait -n
+	fi
+done < "$valid_rects"
+
+
+wait -n
+uhoh

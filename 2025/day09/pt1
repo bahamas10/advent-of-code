@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+points=()
+width=0
+height=0
+while IFS=, read -r x y; do
+	key=$x,$y
+	points+=("$key")
+
+	if ((x > width)); then
+		width=$x
+	fi
+	if ((y > height)); then
+		height=$y
+	fi
+done
+
+((width++))
+((height++))
+
+echo "width = $width"
+echo "height = $height"
+
+max=0
+for ((i = 0; i < ${#points[@]}; i++)); do
+	for ((j = 0; j < ${#points[@]}; j++)); do
+		IFS=, read -r x1 y1 <<< "${points[i]}"
+		IFS=, read -r x2 y2 <<< "${points[j]}"
+
+		dx=$((x2 - x1 + 1))
+		dy=$((y2 - y1 + 1))
+		dx=${dx#-}
+		dy=${dy#-}
+
+		area=$((dx * dy))
+
+		#echo "$x1,$y1 <-> $x2,$y2 = $area"
+
+		if ((area > max)); then
+			max=$area
+		fi
+	done
+done
+
+echo $max

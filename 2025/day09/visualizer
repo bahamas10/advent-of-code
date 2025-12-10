@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+
+. ./../../lib/vardump || exit 1
+
+input=$(< /dev/stdin)
+
+declare -A map=()
+width=0
+height=0
+
+declare -A TIMERS=()
+time-start() {
+	local key=${1?}
+	local now=$EPOCHREALTIME
+	now=${now//.}
+	((now /= 1000))
+	TIMERS[$key]=$now
+}
+time-end() {
+	local key=${1?}
+
+	local now=$EPOCHREALTIME
+	now=${now//.}
+	((now /= 1000))
+	local then=${TIMERS[$key]}
+	local delta=$((now - then))
+
+	echo -e "\e[33mTIMER:\e[0m $key took ${delta}ms"
+}
+
+uhoh() {
+	echo "uh oh" >&2
+	exit 1
+}
+
+print-grid() {
+	local x y
+	for ((y = 0; y < height; y++)); do
+		for ((x = 0; x < width; x++)); do
+			local c=${map[$x,$y]:- }
+			case "$c" in
+				'#') c=$'\e[31m#\e[0m';;
+				'X') c=$'\e[32mX\e[0m';;
+			esac
+			echo -n "$c"
+		done
+		echo
+	done
+}
+
+draw-line() {
+	local prevX=$1
+	local prevY=$2
+	local curX=$3
+	local curY=$4
+
+	local minX=$((prevX < curX ? prevX : curX))
+	local maxX=$((prevX > curX ? prevX : curX))
+	local minY=$((prevY < curY ? prevY : curY))
+	local maxY=$((prevY > curY ? prevY : curY))
+
+	echo "drawing line from $prevX,$prevY -> $curX,$curY"
+
+	local x y key
+	if ((prevX == curX)); then
+		# moving up and down
+		x=$curX
+		for ((y = minY + 1; y < maxY; y++)); do
+			key="$((x / SCALE)),$((y / SCALE))"
+			if [[ -z ${map[$key]} ]]; then
+				map[$key]='X'
+			fi
+		done
+	elif ((prevY == curY)); then
+		# moving side to side
+		y=$curY
+		for ((x = minX + 1; x < maxX; x++)); do
+			key="$((x / SCALE)),$((y / SCALE))"
+			if [[ -z ${map[$key]} ]]; then
+				map[$key]='X'
+			fi
+		done
+	else
+		echo uh oh
+		exit 1
+	fi
+}
+
+SCALE=500
+while IFS=, read -r x y; do
+	((x /= SCALE))
+	((y /= SCALE))
+	key=$x,$y
+	map[$key]='#'
+
+	if ((x > width)); then
+		width=$x
+	fi
+	if ((y > height)); then
+		height=$y
+	fi
+done <<< "$input"
+
+((width++))
+((height++))
+
+echo "width = $width"
+echo "height = $height"
+
+# draw lines (green squares) between points
+prevX=
+while IFS=, read -r curX curY; do
+	if [[ -n $prevX ]]; then
+		draw-line "$prevX" "$prevY" "$curX" "$curY"
+	fi
+	prevX=$curX
+	prevY=$curY
+done <<< "$input"
+# wrap the puzzle
+IFS=, read -r curX curY <<< "$input"
+draw-line "$prevX" "$prevY" "$curX" "$curY"
+
+if [[ -n $4 ]]; then
+	prevX=$1
+	prevY=$2
+	curX=$3
+	curY=$4
+
+	minX=$((prevX < curX ? prevX : curX))
+	maxX=$((prevX > curX ? prevX : curX))
+	minY=$((prevY < curY ? prevY : curY))
+	maxY=$((prevY > curY ? prevY : curY))
+
+	echo hi
+
+	echo "minX=$minX"
+	echo "minY=$minY"
+	echo "maxX=$maxX"
+	echo "maxY=$maxY"
+
+	for ((y = minY / SCALE; y <= maxY / SCALE; y++)); do
+		for ((x = minX / SCALE; x <= maxX / SCALE; x++)); do
+			key=$x,$y
+			echo $key
+			map[$key]='+'
+		done
+	done
+fi
+
+print-grid
