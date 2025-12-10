@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+. ../../lib/vardump || exit 1
+
+total=0
+i=0
+while read -ra items; do
+	_buttons=("${items[@]:1}")
+	joltage=${_buttons[-1]}
+	joltage=${joltage//\{}
+	joltage=${joltage//\}}
+	IFS=, read -ra joltage <<< "$joltage"
+	unset _buttons[-1]
+
+	# read button into array
+	buttons=()
+	for _button in "${_buttons[@]}"; do
+		button=${_button//\(}
+		button=${button//\)}
+		buttons+=("${button//,/ }")
+	done
+
+	vardump -v buttons
+	declare buckets=()
+	for i in "${!joltage[@]}"; do
+		level=${joltage[i]}
+
+		for button_idx in "${!buttons[@]}"; do
+			button=${buttons[button_idx]}
+			read -ra indices <<< "$button"
+			for idx in "${indices[@]}"; do
+				if ((idx == i)); then
+					buckets[$i]+="$button_idx "
+				fi
+			done
+		done
+	done
+	vardump -v joltage
+	vardump buckets
+	exit
+
+	vardump buttons
+done

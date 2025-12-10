@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+
+. ../../lib/vardump || exit 1
+
+rev-string() {
+	local s=$1
+	local len=${#s}
+	local out=''
+	for ((i = len - 1; i >= 0; i--)); do
+		out+=${s:i:1}
+	done
+
+	REPLY=$s
+}
+
+to-binary() {
+        local num=$1
+        local pad=$2
+        local b=''
+        b+=$((num % 2))
+
+        while ((num >>= 1)); do
+                b+=$((num % 2))
+        done
+
+	while ((${#b} < pad)); do
+		b+=0
+	done
+
+	echo "$b"
+}
+
+find-solution() {
+	local cur=$1
+	local desired=$2
+	local pad=$3
+	shift 3
+	local buttons=("$@")
+
+	declare -A cache=()
+
+	local totry=("$cur 1")
+	while (( ${#totry[@]} > 0)); do
+		read -r t pressed <<< "${totry[0]}"
+
+		unset totry[0]
+		totry=( "${totry[@]}" )
+
+
+		#echo "popped off t=$t, pressed=$pressed"
+
+		# press all the buttons lol
+		local button
+		for button in "${buttons[@]}"; do
+			local num=$((t ^ button))
+			if [[ -n ${cache[$num]} ]]; then
+				continue
+			fi
+
+			#echo "$num = $t ^ $button"
+			#echo checking $num == $desired
+			#echo "${ to-binary "$t" "$pad"; } pressing ${ to-binary "$button" "$pad"; } = ${ to-binary "$num" "$pad"; }" >&2
+			if ((num == desired)); then
+				#echo got a match
+				REPLY=$pressed
+				return 0
+			fi
+
+			totry+=("$num $((pressed + 1))")
+			cache[$num]=$((pressed + 1))
+		done
+	done
+
+	echo uh oh
+	exit 1
+#	find-solution "$((cur ^ button))" "$desired" "$level" "$path,$button" "${buttons[@]}"
+}
+
+task() {
+	local pressed=${| find-solution "$@"; }
+	echo "$pressed" >> totals.txt
+}
+
+
+total=0
+i=0
+while read -ra items; do
+	desired=${items[0]}
+	buttons=("${items[@]:1}")
+	unset buttons[-1]
+	_buttons=( "${buttons[@]//[()]}" )
+
+	echo "== looking at $desired"
+	len=$(( ${#desired} - 2 ))
+
+	buttons=()
+	for _button in "${_buttons[@]}"; do
+		IFS=, read -ra thing <<< "$_button"
+
+		num=0
+		for t in "${thing[@]}"; do
+			(( num += 2 ** (len - t - 1) ))
+		done
+		buttons+=("$num")
+	done
+
+	desired=${desired#\[}
+	desired=${desired%\]}
+	pad=${#desired}
+	desired=${desired//./0}
+	desired=${desired//#/1}
+	desired=$((2#$desired))
+
+	echo "forking $i"
+	task 0 "$desired" "$pad" "${buttons[@]}" &
+	((i++))
+	if ((i >= 20)); then
+		wait -n
+	fi
+done
+
+wait -n
