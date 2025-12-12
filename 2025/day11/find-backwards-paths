@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+. ../../lib/vardump || exit
+
+BEGIN=${1?}
+END=${2?}
+
+declare -A map=()
+
+while IFS=: read -r key value; do
+	map[$key]=" $value "
+done
+
+total=0
+
+find-path() {
+	local name=$1
+	local path=$2
+
+	path+="$name,"
+
+	if [[ $name == $END ]]; then
+		echo "valid: $path"
+		((total++))
+		return
+	fi
+
+	local device connections
+	for device in "${!map[@]}"; do
+		connections=${map[$device]}
+		if [[ $connections == *" $name "* ]]; then
+			find-path "$device" "$path"
+		fi
+	done
+}
+
+find-path "$BEGIN" ''
+
+echo "there were $total paths found"

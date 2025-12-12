@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+. ../../lib/vardump || exit
+
+BEGIN=${1?}
+END=${2?}
+
+declare -A map=()
+declare -A cache=()
+
+while IFS=: read -r key value; do
+	map[$key]=$value
+done
+
+print-progress() {
+	vardump -v cache
+	sleep 5
+}
+
+trap print-progress SIGINFO
+
+total=0
+find-path() {
+	local name=$1
+	local path=$2
+
+	echo "find-path $name $path"
+
+	path+="$name,"
+
+	if [[ $name == 'out' ]]; then
+		REPLY=0
+		return
+	fi
+
+	if [[ $name == $END ]]; then
+		REPLY=1
+		return
+	fi
+
+	local cached=${cache[$name]}
+	if [[ -n $cached ]]; then
+		REPLY=$cached
+		return
+	fi
+
+#	echo "name is $name"
+#	echo "${map[$name]}"
+	local -a connections=()
+	read -ra connections <<< "${map[$name]}"
+
+	local total=0
+	local connection num
+	for connection in "${connections[@]}"; do
+		num=${| find-path "$connection" "$path"; }
+#		cache[$connection]=$num
+		((total += num))
+	done
+
+	cache[$name]=$total
+	REPLY=$total
+}
+
+num=${| find-path "$BEGIN" ''; }
+
+echo finished with $num
+echo the answer is ${cache[$BEGIN]}

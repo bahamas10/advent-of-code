@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+. ../../lib/vardump || exit
+
+declare -A map=()
+
+while IFS=: read -r key value; do
+	map[$key]=$value
+done
+
+total=0
+
+START='svr'
+END='out'
+
+find-path() {
+	local name=$1
+	local num=$2
+	local depth=$3
+
+	if [[ $name == $END ]] && ((num == 2)); then
+		((total++))
+		return
+	fi
+
+	echo "depth $depth"
+
+	case "$name" in
+		dac | fft) ((num++))
+	esac
+
+	local connections
+	read -ra connections <<< "${map[$name]}"
+
+	for connection in "${connections[@]}"; do
+		find-path "$connection" "$num" "$((depth + 1))"
+	done
+}
+
+find-path "$START" 0 0
+
+echo "there were $total paths found"

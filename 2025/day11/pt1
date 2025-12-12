@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+. ../../lib/vardump || exit
+
+declare -A map=()
+
+while IFS=: read -r key value; do
+	map[$key]=$value
+done
+
+total=0
+goal='out'
+
+find-path() {
+	local name=$1
+
+	if [[ $name == $goal ]]; then
+		((total++))
+		return
+	fi
+
+	local connections
+	read -ra connections <<< "${map[$name]}"
+
+	for connection in "${connections[@]}"; do
+		find-path "$connection"
+	done
+}
+
+find-path 'you'
+
+echo "there were $total paths found"
