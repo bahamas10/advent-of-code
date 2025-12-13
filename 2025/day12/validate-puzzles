@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+. ./../../lib/vardump || exit
+
+dimensons=()
+presents=()
+
+idx_re='^([0-9]+):$'
+dim_re='^([0-9]+)x([0-9]+): (.*)$'
+
+present_idx=-1
+state='init'
+while read -r line; do
+	if [[ $line =~ $idx_re ]]; then
+		# new present time!
+		present_idx=${BASH_REMATCH[1]}
+		state='present'
+	elif [[ $line =~ $dim_re ]]; then
+		state='dimension'
+		width=${BASH_REMATCH[1]}
+		height=${BASH_REMATCH[2]}
+		things=${BASH_REMATCH[3]}
+		dimensions+=("$width $height $things")
+	elif [[ -n $line ]]; then
+		# assume we are reading present data
+		presents[present_idx]+="$line "
+	fi
+done
+
+unsolveable=0
+solveable=0
+maybe=0
+for dimension in "${dimensions[@]}"; do
+	read -r width height therest <<< "$dimension"
+	read -ra amounts <<< "$therest"
+
+	echo -n "testing $width x $height: "
+	area=$((width * height))
+
+	spaceneeded=0
+	naive=0
+        for idx in "${!amounts[@]}"; do
+                amount=${amounts[idx]}
+		present=${presents[idx]}
+
+		hashes=${present//[^#]}
+		numhashes=${#hashes}
+
+		((spaceneeded += amount * numhashes))
+		((naive += amount * 9))
+        done
+
+	if ((spaceneeded > area)); then
+		echo "this puzzle is unsolveable (fast check)"
+		((unsolveable++))
+	elif ((naive <= area)); then
+		echo "this puzzle IS DEFINITELY solveable"
+		((solveable++))
+	else
+		echo "this puzzle MAY be solveable"
+		((maybe++))
+	fi
+done
+
+echo "unsolveable: $unsolveable"
+echo "solveable: $solveable"
+echo "maybe: $maybe"

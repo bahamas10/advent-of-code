@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+
+. ./../../lib/vardump || exit
+
+declare -A grid=()
+declare -A presentgrid=()
+
+grid_height=-1
+grid_width=-1
+
+print-grid() {
+        local x y
+        for ((y = 0; y < grid_height; y++)); do
+                for ((x = 0; x < grid_width; x++)); do
+                        local c=${grid[$x,$y]:-.}
+                        echo -n "$c"
+                done
+                echo
+        done
+}
+
+load-present() {
+	local idx=$1
+
+	local present=${presents[idx]}
+	read -ra present <<< "$present"
+
+	# all presents are 3 by 3
+	presentgrid=()
+	local x y
+	for ((y = 0; y < 3; y++)); do
+		for ((x = 0; x < 3; x++)); do
+			local c=${present[y]}
+			c=${c:x:1}
+			presentgrid[$x,$y]=$c
+		done
+	done
+
+	vardump presentgrid
+}
+
+declare -A SAVED=()
+save-grid() {
+	local key value
+	SAVED=()
+	for key in "${!grid[@]}"; do
+		value=${grid[$key]}
+		SAVED[$key]=$value
+	done
+}
+
+restore-grid() {
+	local key value
+	grid=()
+	for key in "${!SAVED[@]}"; do
+		value=${SAVED[$key]}
+		grid[$key]=$value
+	done
+}
+
+load-grid() {
+	local width=$1
+	local height=$2
+
+        local x y
+	grid=()
+        for ((y = 0; y < height; y++)); do
+                for ((x = 0; x < width; x++)); do
+			grid[$x,$y]=0
+                done
+        done
+
+	grid_width=$width
+	grid_height=$height
+}
+
+grid-invalid() {
+	local x y
+	for ((y = 0; y < grid_height; y++)); do
+		for ((x = 0; x < grid_width; x++)); do
+			local key=$x,$y
+			local c=${grid[$key]}
+			if ((c > 1)); then
+				return 1
+			fi
+		done
+	done
+	return 0
+}
+
+fit-piece-into-grid() {
+	local idx=$1
+	load-present "$idx"
+
+	# brute force try to fit the piece in
+	local x y
+	for ((y = 0; y < height - 3; y++)); do
+		for ((x = 0; x < width - 3; x++)); do
+			save-grid
+			for ((i = 0; i < 3; i++)); do
+				for ((j = 0; j < 3; j++)); do
+					# fit the piece in
+					local c=${presentgrid[$j,$i]}
+					if [[ $c == '#' ]]; then
+						((grid[$x,$y]++))
+					fi
+				done
+			done
+			if grid-invalid; then
+				restore-grid
+			else
+				# piece fit!
+				continue 3
+			fi
+		done
+	done
+done
+
+}
+
+solve-puzzle() {
+	local width=$1
+	local height=$2
+	shift 2
+	local amounts=( "$@" )
+
+	load-grid "$width" "$height"
+	print-grid
+
+	local tofit=()
+	local idx
+	for idx in "${!amounts[@]}"; do
+		local amount=${amounts[idx]}
+
+		for ((i = 0; i < amount; i++)); do
+			tofit+=("$idx")
+		done
+	done
+
+	# loop over the presents we want to fit
+	local x y i j
+	for idx in "${tofit[@]}"; do
+	echo yay
+
+	#load-present "$idx"
+
+	#try-to-fit-present || continue 3
+}
+
+dimensons=()
+presents=()
+
+idx_re='^([0-9]+):$'
+dim_re='^([0-9]+)x([0-9]+): (.*)$'
+
+present_idx=-1
+state='init'
+while read -r line; do
+	if [[ $line =~ $idx_re ]]; then
+		# new present time!
+		present_idx=${BASH_REMATCH[1]}
+		state='present'
+	elif [[ $line =~ $dim_re ]]; then
+		state='dimension'
+		width=${BASH_REMATCH[1]}
+		height=${BASH_REMATCH[2]}
+		things=${BASH_REMATCH[3]}
+		dimensions+=("$width $height $things")
+	elif [[ -n $line ]]; then
+		# assume we are reading present data
+		presents[present_idx]+="$line "
+	fi
+done
+
+total=0
+for dimension in "${dimensions[@]}"; do
+	read -r width height therest <<< "$dimension"
+	read -ra amounts <<< "$therest"
+
+	echo "testing $width x $height"
+	if solve-puzzle "$width" "$height" "${amounts[@]}"; then
+		echo solved!
+		((total++))
+	fi
+done
+print-grid
+echo "total $total are solveable"
