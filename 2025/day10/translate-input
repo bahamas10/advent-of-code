@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+. ./../../lib/vardump
+
+while read -ra items; do
+	_buttons=("${items[@]:1}")
+	joltage=${_buttons[-1]}
+	joltage=${joltage//\{}
+	joltage=${joltage//\}}
+	unset _buttons[-1]
+
+	# read button into array
+	IFS=, read -ra j <<< "$joltage"
+	len=${#j[@]}
+
+	buttons=()
+	for _button in "${_buttons[@]}"; do
+		_button=${_button#(}
+		_button=${_button%)}
+		IFS=, read -ra thing <<< "$_button"
+
+		num=0
+		for t in "${thing[@]}"; do
+			(( num += 2 ** (len - t - 1) ))
+		done
+		buttons+=("$num")
+	done
+
+	(
+		IFS=,
+		echo "$joltage" "${buttons[*]}"
+	)
+done
