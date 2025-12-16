@@ -2,42 +2,367 @@
 
 . ../../lib/vardump || exit 1
 
+declare -A cache=()
+
+debug() {
+	[[ -n $DEBUG ]] && echo "[debug]" "$@"
+}
+
+#check-valid-joltages() {
+#	local jolt
+#	for jolt in "$@"; do
+#		if ((jolt < 0)); then
+#
+#	done
+#}
+
+set-cache() {
+	local key=$1
+	local value=$2
+	debug "set cache: cache[$key]=$value"
+
+
+#	local -a nums
+#	read -ra nums <<< "$key"
+#	local num total=0
+#	for num in "${nums[@]}"; do
+#		((total+=num))
+#	done
+
+
+	cache[$key]=$value
+}
+
+convert-joltage-to-lights() {
+	local joltages=("$@")
+	local lights=''
+	local jolt
+	for jolt in "${joltages[@]}"; do
+		case "$((jolt % 2))" in
+			0) lights+='.';;
+			1) lights+='#';;
+			*) exit 1;;
+		esac
+	done
+	echo "$lights"
+}
+
+convert-lights-to-number() {
+	local lights=$1
+	local len=${#lights}
+
+	local num=0
+	local i
+	for ((i = 0; i < len; i++)); do
+		local c=${lights:i:1}
+		case "$c" in
+			.) ;;
+			'#') ((num += 2 ** (len - i - 1) ));;
+		esac
+	done
+
+	echo "$num"
+}
+
+convert-number-to-button() {
+	local num=$1
+	local len=$2
+	((num <<= 1))
+
+	echo -n '('
+	local idx=$len
+	local output=()
+        while ((num >>= 1)); do
+		((idx--))
+#		echo "shifted $num"
+		case "$((num % 2))" in
+			0) ;;
+			1) echo "$idx,"
+		esac
+        done
+	echo -n ')'
+}
+
+find-all-routes-to-lights-off() {
+	local lights=$1
+	shift
+	local buttons=("$@")
+
+	local num=${ convert-lights-to-number "$lights"; }
+	local max=$((2 ** ${#buttons[@]}))
+
+	{
+	local i j
+	# loop all possibility of button presses with no repeats
+	for ((i = 0; i < max; i++)); do
+		#echo "checking button $i"
+
+		local newnum=0
+
+		# loop each button and see if we should press it
+		local pressed=()
+		for ((j = 0; j < ${#buttons[@]}; j++)); do
+			local k=$((1 << j))
+
+			#echo "$i & $k"
+			if ((i & k)); then
+				# we should press it!
+				local button=${buttons[j]}
+				#echo pressing $button
+				pressed+=("$button")
+				((newnum ^= button))
+			fi
+		done
+
+
+		#echo "comparing $newnum to $num"
+		# get the light layout for the buttons
+		if ((newnum == num)); then
+			echo "${#pressed[@]} ${pressed[*]}"
+		fi
+	done
+	} | sort -n | cut -d ' ' -f 2-
+}
+
+solve-joltage() {
+	local -a joltages button
+	read -ra joltages <<< "$1"
+	read -ra buttons <<< "$2"
+
+	local i
+
+	local c=${cache[${joltages[*]}]}
+	if [[ -n $c ]]; then
+		# the value was cached
+		debug "cache hit: ${joltages[*]} = $c"
+		if ((c == -1)); then
+			# this is impossible
+			return 1
+		else
+			# this is possible and we've been there - return the
+			# answer
+			REPLY=$c
+			return 0
+		fi
+	fi
+
+	debug "trying to solve joltages $1"
+
+	local totaljoltage=0
+	local jolt
+	for jolt in "${joltages[@]}"; do
+		((totaljoltage += jolt))
+		if ((jolt < 0)); then
+			# this is invalid! cache that it sucks
+			debug "this joltage is invalid"
+			#debug cache!
+			set-cache "${joltages[*]}" -1
+			return 1
+		fi
+	done
+	#debug "total joltage = $totaljoltage"
+
+	local answer best dave
+	if ((totaljoltage < 0)); then
+		debug "uh oh, cache"
+		echo UNREACHABLE >&2
+		exit 57
+		return 1
+	fi
+
+	if ((totaljoltage == 0)); then
+		debug "solved!"
+		set-cache "${joltages[*]}" 0
+		#vardump cache
+		REPLY=0
+		return 0
+	fi
+
+	# 1. figure out light form of current joltages
+	local lights=${ convert-joltage-to-lights "${joltages[@]}"; }
+	debug "${joltages[*]} becomes $lights"
+
+	# 2. if there are lights turned on, figure out all possible
+	# paths to turn the lights OFF
+	local dots=${lights//#}
+	if [[ $lights == "$dots" ]]; then
+		# joltages are already all lights OFF (even numbers)
+
+		# 1. check to see if we can optimize this by cutting it
+		# in half... check for *any* zero jolts
+
+		debug "joltage is even: ${joltages[*]}"
+
+#		# try to cut it in half
+#		local haszeroes=false
+#		for jolt in "${joltages[@]}"; do
+#			if ((jolt == 0)); then
+#				haszeroes=true
+#				break
+#			fi
+#		done
+
+		best=-1
+#		if ! $haszeroes; then
+			# we can cut it in half!
+		debug 'cutting joltage in half!'
+		local i
+		local j=( "${joltages[@]}" )
+		for ((i = 0; i < ${#j[@]}; i++)); do
+			((j[i] /= 2))
+		done
+		answer=${| solve-joltage "${j[*]}" "${buttons[*]}"; }
+		#echo "after split = $answer"
+		if (($? == 0)); then
+			set-cache "${joltages[*]}" "$((answer * 2))"
+			set-cache "${j[*]}" "$answer"
+			REPLY=$((answer * 2))
+			#echo "REPLY=$best"
+			return 0
+		fi
+
+		echo 'uh oh, cutting in half didnt work'
+
+		# brute force all buttons
+		debug "brute force all event buttons"
+		local button
+		for button in "${buttons[@]}"; do
+			# simulate button press and DFS it
+			local j=()
+			local i=0
+			for jolt in "${joltages[@]}"; do
+				local idx=$((1 << i))
+				if ((idx & button)); then
+					((jolt--))
+				fi
+				j+=("$jolt")
+				((i++))
+			done
+
+			answer=${| solve-joltage "${j[*]}" "${buttons[*]}"; }
+			if (($? == 0)); then
+				set-cache "${j[*]}" "$answer"
+				((answer += 1))
+				if ((best == -1 || answer < best)); then
+					best=$answer
+				fi
+			else
+				set-cache "${j[*]}" -1
+			fi
+		done
+		if ((best > -1)); then
+			REPLY=$best
+			#echo "REPLY=$best"
+			return 0
+		else
+			return 1
+		fi
+	else
+		debug "joltages have 1 or more lights on"
+		# joltages contain 1 or more lights on - figure out all
+		# possible paths to turn them off using no repeat
+		# buttons
+		paths=${ find-all-routes-to-lights-off "$lights" "${buttons[@]}"; }
+
+		# these paths + all buttons? to check next using DFS
+		best=-1
+		if [[ -n $paths ]]; then
+			debug "found some shorter paths"
+			debug "$paths"
+			local _buttons
+			while read -ra _buttons; do
+				debug "need to press ${_buttons[*]}"
+
+				local j=( "${joltages[@]}" )
+				local button
+				for button in "${_buttons[@]}"; do
+					debug pressing button $button
+					# simulate button press and DFS it
+					for ((i = 0; i < ${#j[@]}; i++)); do
+						local idx=$((2 ** (${#j[@]} - i - 1)))
+						#debug "i=$i, idx=$idx"
+						if ((idx & button)); then
+							#debug "decrementing j at $i"
+							((j[i]--))
+						fi
+					done
+				done
+				answer=${| solve-joltage "${j[*]}" "${buttons[*]}"; }
+				if (($? == 0)); then
+					set-cache "${j[*]}" "$answer"
+					((answer += ${#_buttons[@]}))
+					if ((best == -1 || answer < best)); then
+						best=$answer
+					fi
+				else
+					set-cache "${j[*]}" -1
+				fi
+			done <<< "$paths"
+		fi
+
+
+		if ((best > -1)); then
+			REPLY=$best
+			return 0
+		else
+			#echo uh oh shortest didnt work
+			return 1
+		fi
+#		set-cache "${joltages[*]}" -1
+		return 1
+
+		local button
+		for button in "${buttons[@]}"; do
+			# simulate button press and DFS it
+			local j=()
+			local i=0
+			for jolt in "${joltages[@]}"; do
+				local idx=$((2 ** (${#joltages[@]} - i - 1)))
+				if ((idx & button)); then
+					((jolt--))
+				fi
+				j+=("$jolt")
+				((i++))
+			done
+
+			answer=${| solve-joltage "${j[*]}" "${buttons[*]}"; }
+			if (($? == 0)); then
+				set-cache "${j[*]}" "$answer"
+				((answer++))
+				if ((best == -1 || answer < best)); then
+					best=$answer
+				fi
+			else
+				set-cache "${j[*]}" -1
+			fi
+		done
+		if ((best > -1)); then
+			REPLY=$best
+			return 0
+		else
+			return 1
+		fi
+	fi
+
+	debug "function finished"
+	return 1
+}
+
 total=0
 i=0
-while read -ra items; do
-	_buttons=("${items[@]:1}")
-	joltage=${_buttons[-1]}
-	joltage=${joltage//\{}
-	joltage=${joltage//\}}
-	IFS=, read -ra joltage <<< "$joltage"
-	unset _buttons[-1]
+while read -r _joltage _buttons; do
+	IFS=, read -ra joltage <<< "$_joltage"
+	IFS=, read -ra buttons <<< "$_buttons"
+	((i++))
 
-	# read button into array
-	buttons=()
-	for _button in "${_buttons[@]}"; do
-		button=${_button//\(}
-		button=${button//\)}
-		buttons+=("${button//,/ }")
-	done
-
-	vardump -v buttons
-	declare buckets=()
-	for i in "${!joltage[@]}"; do
-		level=${joltage[i]}
-
-		for button_idx in "${!buttons[@]}"; do
-			button=${buttons[button_idx]}
-			read -ra indices <<< "$button"
-			for idx in "${indices[@]}"; do
-				if ((idx == i)); then
-					buckets[$i]+="$button_idx "
-				fi
-			done
-		done
-	done
-	vardump -v joltage
-	vardump buckets
-	exit
-
-	vardump buttons
+	cache=()
+#	best=()
+	echo "$i: solving ${joltage[*]}"
+	answer=${| solve-joltage "${joltage[*]}" "${buttons[*]}" 0 ''; } || echo THIS ONE FAILED
+	((total += answer))
+	echo "took $answer presses"
 done
+
+echo "took $total total presses"
+
+#vardump cache
