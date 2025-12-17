@@ -3,6 +3,10 @@
 . ../../lib/vardump || exit 1
 
 declare -A cache=()
+declare -A routes=()
+
+DIR='out-new'
+mkdir -p "$DIR"
 
 debug() {
 	[[ -n $DEBUG ]] && echo "[debug]" "$@"
@@ -222,7 +226,8 @@ solve-joltage() {
 		fi
 
 
-#		echo 'uh oh, cutting in half didnt work'
+		echo 'uh oh, cutting in half didnt work'
+		return 1
 
 		# brute force all buttons
 		debug "brute force all event buttons"
@@ -263,7 +268,12 @@ solve-joltage() {
 		# joltages contain 1 or more lights on - figure out all
 		# possible paths to turn them off using no repeat
 		# buttons
-		paths=${ find-all-routes-to-lights-off "$lights" "${buttons[@]}"; }
+		local paths
+		paths=${routes[$lights]}
+		if [[ -z $paths ]]; then
+			paths=${ find-all-routes-to-lights-off "$lights" "${buttons[@]}"; }
+			routes[$lights]=$paths
+		fi
 
 		# these paths + all buttons? to check next using DFS
 		best=-1
@@ -285,6 +295,7 @@ solve-joltage() {
 						if ((idx & button)); then
 							#debug "decrementing j at $i"
 							((j[i]--))
+							((j < 0)) && continue 3
 						fi
 					done
 				done
@@ -305,12 +316,13 @@ solve-joltage() {
 		if ((best > -1)); then
 			REPLY=$best
 			return 0
-		else
-			#echo uh oh shortest didnt work
-			return 1
 		fi
-#		set-cache "${joltages[*]}" -1
-		return 1
+#		else
+			#echo uh oh shortest didnt work
+#			return 1
+#		fi
+##		set-cache "${joltages[*]}" -1
+#		return 1
 
 		local button
 		for button in "${buttons[@]}"; do
@@ -323,6 +335,7 @@ solve-joltage() {
 					((jolt--))
 				fi
 				j+=("$jolt")
+				((jolt < 0)) && continue 2
 				((i++))
 			done
 
@@ -356,6 +369,7 @@ task() {
 
 	local tid=$1
 	cache=()
+	routes=()
 
 	echo "$tid: solving ${joltage[*]}"
 
@@ -363,7 +377,7 @@ task() {
 	answer=-1
 	answer=${| solve-joltage "${joltage[*]}" "${buttons[*]}"; }
 
-	echo "$answer" > "out/$tid.txt"
+	echo "$answer" > "$DIR/$tid.txt"
 }
 
 total=0
@@ -373,7 +387,7 @@ while read -r _joltage _buttons; do
 	IFS=, read -ra joltage <<< "$_joltage"
 	IFS=, read -ra buttons <<< "$_buttons"
 
-	if [[ -e out/$i.txt ]]; then
+	if [[ -e $DIR/$i.txt ]]; then
 		echo "skipping $i"
 		((i++))
 		continue
