@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+total=0
+while IFS=x read -r l w h; do
+	echo "looking at $l $w $h"
+	side1=$((l * w))
+	side2=$((w * h))
+	side3=$((h * l))
+
+	surfacearea=$((2*side1 + 2*side2 + 2*side3))
+
+	min=$side1
+	if ((side2 < min)); then
+		min=$side2
+	fi
+	if ((side3 < min)); then
+		min=$side3
+	fi
+
+	echo "minimum is $min"
+
+	totalarea=$((surfacearea + min))
+
+	echo "area is $totalarea"
+
+	((total += totalarea))
+done
+
+echo "total is $total"

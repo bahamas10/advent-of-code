@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+read -r line
+
+echo "${#line} total instructions"
+
+oparens=${line//\)/}
+cparens=${line//\(/}
+
+oparens=${#oparens}
+cparens=${#cparens}
+
+echo "${oparens} oparens"
+echo "${cparens} cparens"
+
+
+floor=0
+((floor += oparens))
+((floor -= cparens))
+
+echo "we are now on floor $floor"

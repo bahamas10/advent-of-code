@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+read -r instructions
+
+declare -A presents=()
+
+x=0
+y=0
+
+((presents[$x,$y]++))
+for ((i = 0; i < ${#instructions}; i++)); do
+	c=${instructions:i:1}
+
+	case "$c" in
+		'^') ((y--));;
+		'v') ((y++));;
+		'<') ((x--));;
+		'>') ((x++));;
+	esac
+	((presents[$x,$y]++))
+done
+
+echo "${#presents[@]} houses got presents"

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+read -r key
+
+coproc md5er { ./md5er; }
+
+cleanup() {
+	exec ${md5er[1]}>&-
+}
+
+trap cleanup EXIT
+
+i=1
+i=282749
+while true; do
+	s=$key$i
+
+	# md5 the string
+	echo "$s" >&${md5er[1]}
+
+	# read it back
+	read -u "${md5er[0]}" md5
+
+	# check for 5 leading 0s
+	prefix=${md5:0:6}
+
+	if [[ $prefix == '000000' ]]; then
+		echo bitcoin found
+		echo "$i"
+		break
+	fi
+
+
+	if ((i % 1000 == 0)); then
+		echo "$i"
+	fi
+
+	((i++))
+done

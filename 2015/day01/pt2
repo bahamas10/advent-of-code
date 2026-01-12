@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+read -r line
+
+echo "${#line} total instructions"
+
+floor=0
+for ((i = 0; i < ${#line}; i++)); do
+	c=${line:i:1}
+
+	case "$c" in
+		'(') ((floor++));;
+		')') ((floor--));;
+	esac
+
+	if ((floor < 0)); then
+		echo "went to basement at $((i + 1))"
+		break
+	fi
+done

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+total=0
+while IFS=x read -r l w h; do
+	echo "looking at $l $w $h"
+	side1=$((l * w))
+	side2=$((w * h))
+	side3=$((h * l))
+
+	# get the volume (bow)
+	bow=$((l * w * h))
+
+	# find the 2 smallest sides
+	a=$((2*l + 2*w))
+	b=$((2*l + 2*h))
+	c=$((2*w + 2*h))
+
+	min=$a
+	if ((b < min)); then
+		min=$b
+	fi
+	if ((c < min)); then
+		min=$c
+	fi
+
+	((total += min + bow))
+done
+
+echo "total is $total"

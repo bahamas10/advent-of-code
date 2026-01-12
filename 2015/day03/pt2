@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+read -r instructions
+
+declare -A presents=()
+
+# santa, robo-santa
+coords=(0,0 0,0)
+
+((presents["0,0"]++))
+for ((i = 0; i < ${#instructions}; i++)); do
+	c=${instructions:i:1}
+	((j = i % 2))
+
+	IFS=, read -r x y <<< "${coords[j]}"
+
+	case "$c" in
+		'^') ((y--));;
+		'v') ((y++));;
+		'<') ((x--));;
+		'>') ((x++));;
+	esac
+	((presents[$x,$y]++))
+
+	coords[j]=$x,$y
+done
+
+echo "${#presents[@]} houses got presents"
