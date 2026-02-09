@@ -53,7 +53,7 @@ for ((i = 0; i < j; i++)); do
 	char=${defragmented[i]}
 	if [[ $char == '.' ]]; then
 		# find the first number at the end of the list
-		while true; do
+		while ((j > i)); do
 			((j--))
 			new_char=${defragmented[j]}
 
